@@ -29,6 +29,9 @@ auditable dan gampang di-manage dari satu tempat.
   (diblokir WAF), 429 (rate limited), 413 (payload kebesaran), dan 503
   (service unavailable) bisa diedit langsung dari dashboard, lengkap
   dengan preview dan tombol reset ke default.
+- **Login & bahasa** - dashboard terkunci di belakang login admin (password
+  awal di-generate otomatis, lihat bagian Login di bawah), dan tersedia
+  dalam Bahasa Indonesia atau English (tinggal toggle).
 
 ## Arsitektur
 
@@ -73,14 +76,41 @@ terminal lain). Setelah itu buka:
 - **Backend API**: `http://localhost:8000` (opsional, cuma kalau mau cek API langsung)
 - **WAF (jalur traffic)**: `http://localhost:8080` (ini yang nantinya jadi tujuan trafik situs yang dilindungi)
 
+## Login pertama kali
+
+Dashboard butuh login - **tidak ada password default yang bisa ditebak**.
+Saat `backend` pertama kali jalan (sekali saja, di instalasi awal), dia
+otomatis bikin satu akun admin dengan password random, dan nampilin
+password itu **cuma sekali** di log container:
+
+```bash
+docker compose logs backend | grep -A5 "admin account created"
+```
+
+Hasilnya kira-kira:
+
+```
+==================================================================
+  Sentinel WAF - initial admin account created
+  username: admin
+  password: <random, cuma muncul sekali di sini>
+==================================================================
+```
+
+Login pakai username `admin` + password itu di `http://localhost:5173`.
+Dashboard bakal langsung minta kamu ganti password itu ke password sendiri
+sebelum bisa lanjut pakai fitur lain. Lupa/ilang password-nya? Masuk ke
+database Postgres dan hapus baris di tabel `admins` lalu restart
+`backend` - akun admin baru bakal dibuat ulang otomatis.
+
 ## Setup pertama kali
 
-Begitu container jalan, dashboard masih **kosong rule** (sengaja - gak
-ada CRS otomatis ter-load dari image vendor, biar semua rule yang aktif
-benar-benar tercatat lewat dashboard). Langkah-langkahnya:
+Begitu login, dashboard masih **kosong rule** (sengaja - gak ada CRS
+otomatis ter-load dari image vendor, biar semua rule yang aktif benar-benar
+tercatat lewat dashboard). Langkah-langkahnya:
 
-1. Buka `http://localhost:5173` → tab **Rules** → import OWASP CRS versi
-   terbaru dari daftar katalog (tinggal klik "Import").
+1. Tab **Rules** → import OWASP CRS versi terbaru dari daftar katalog
+   (tinggal klik "Import").
 2. Tab **Sites** → tambahkan domain + upstream backend aplikasi yang mau
    dilindungi (misal `shop.example.com` → `http://app-backend:3000`).
 3. Arahkan trafik ke `http://localhost:8080` dengan header `Host` sesuai
