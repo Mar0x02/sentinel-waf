@@ -65,6 +65,38 @@ def ensure_admin_seeded(db: Session) -> None:
     )
 
 
+def rotate_jwt_secret(db: Session) -> None:
+    """Invalidates every outstanding session token immediately by replacing
+    the signing key - used by the reset-admin CLI so a password reset
+    (e.g. because the password may have leaked) also kicks out anyone
+    already logged in, not just the account owner.
+    """
+    row = db.get(AppSecret, JWT_SECRET_KEY_NAME)
+    if row is None:
+        row = AppSecret(key=JWT_SECRET_KEY_NAME, value=secrets.token_hex(32))
+        db.add(row)
+    else:
+        row.value = secrets.token_hex(32)
+    db.commit()
+
+
+def reset_admin_password(db: Session) -> tuple[str, str] | None:
+    """Generates a new random password for the (single) admin account and
+    forces a change on next login. Returns (username, new_password), or
+    None if no admin account exists yet (nothing to reset - one gets
+    created normally on the backend's next startup).
+    """
+    admin = db.query(Admin).first()
+    if admin is None:
+        return None
+    new_password = secrets.token_urlsafe(16)
+    admin.password_hash = hash_password(new_password)
+    admin.must_change_password = True
+    db.commit()
+    rotate_jwt_secret(db)
+    return admin.username, new_password
+
+
 def get_current_admin(
     authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
