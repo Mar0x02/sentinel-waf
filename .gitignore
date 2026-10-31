@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.venv/
+
+node_modules/
+dist/
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+
+.env
+backend/.env
+frontend/.env
+
+# Local architecture/design notes - not meant to be pushed to the repo.
+CLAUDE.md
