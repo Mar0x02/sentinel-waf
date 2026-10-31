@@ -192,6 +192,14 @@ class EngineSettings(Base):
     request_body_limit: Mapped[int] = mapped_column(Integer, default=13107200, nullable=False)
     response_body_limit: Mapped[int] = mapped_column(Integer, default=1048576, nullable=False)
     response_body_mime_type: Mapped[str] = mapped_column(String, default="text/html text/plain", nullable=False)
+    # Free-form ModSecurity directives for anything the structured fields
+    # above don't cover (SecPcreMatchLimit, SecCollectionTimeout, etc).
+    # Rendered verbatim, same trust model as a custom rule file's raw
+    # content - no charset restriction, since arbitrary directives are the
+    # point. Protected the same way any rendered config is: waf-engine's
+    # watcher runs `nginx -t` before reloading and keeps the last-good
+    # config running if this is invalid - see CLAUDE.md.
+    advanced_config: Mapped[str] = mapped_column(Text, default="", nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

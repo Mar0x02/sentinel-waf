@@ -146,6 +146,17 @@ def render_engine_settings(db: Session, settings: Settings) -> None:
     ]
     (base / "000-engine-settings.conf").write_text("\n".join(lines) + "\n")
 
+    # Separate file, named to sort after 000-engine-settings.conf, so any
+    # directive here can override a structured one above if the admin
+    # wants that - and so a syntax mistake here can't accidentally break
+    # the structured settings' own file.
+    advanced_lines = [
+        "# Managed by the dashboard - do not edit directly, see the Settings page.",
+        "# Free-form directives from the Advanced section.",
+        row.advanced_config,
+    ]
+    (base / "999-advanced.conf").write_text("\n".join(advanced_lines) + "\n")
+
 
 def render_log_sinks(db: Session, settings: Settings) -> None:
     sinks = db.query(LogSink).filter(LogSink.enabled.is_(True)).all()
