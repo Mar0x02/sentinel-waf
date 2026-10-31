@@ -39,7 +39,11 @@ auditable dan gampang di-manage dari satu tempat.
 - **WAF Engine Settings** - atur perilaku global ModSecurity langsung dari
   dashboard (mode audit logging, limit ukuran body request/response, MIME
   type yang diperiksa) - gak perlu lagi ubah environment variable di
-  `docker-compose.yml`. Khusus Admin, di tab **Settings**.
+  `docker-compose.yml`. Khusus Admin, di tab **Settings**. Ada juga bagian
+  **Advanced** buat nulis directive ModSecurity mentah apa aja yang belum
+  ke-cover field biasa (misal `SecPcreMatchLimit`) - kalau syntax-nya
+  salah, WAF otomatis tetap pakai config lama (gak down), tinggal dicek &
+  diperbaiki.
 
 ## Arsitektur
 
