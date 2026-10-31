@@ -21,6 +21,11 @@ auditable dan gampang di-manage dari satu tempat.
   (blocking/detection/inbound/outbound) langsung dari form, gak perlu tau
   syntax ModSecurity. `crs-setup.conf` juga bisa diedit manual kalau mau
   atur hal lain di luar itu (file rule bawaan CRS lainnya tetap terkunci).
+- **Tunable lain otomatis ke-detect** - di luar paranoia/anomaly, dashboard
+  nyari sendiri semua knob tuning lain di file setup (contoh:
+  `max_file_size`, `allowed_methods`, `restricted_extensions`, dst - ada
+  ~22 di CRS) dan nampilin sebagai list yang bisa diaktifin/diedit
+  langsung, gak perlu hardcode per-variable atau nulis syntax manual.
 - **Reverse proxy (Sites)** - daftarkan domain + upstream backend dari
   dashboard, langsung jadi server block nginx yang otomatis dilindungi
   oleh rule yang aktif.
