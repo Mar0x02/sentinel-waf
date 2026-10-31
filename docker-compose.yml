@@ -23,12 +23,14 @@ services:
       WAF_RULES_RENDER_DIR: /render/modsecurity-rules
       WAF_SITES_RENDER_DIR: /render/nginx-sites
       WAF_LOG_SINK_CONFIG_PATH: /render/log-sinks/log-sinks.json
+      WAF_ERROR_PAGES_RENDER_DIR: /render/error-pages
       WAF_AUDIT_LOG_DIR: /data/logs
       WAF_AUDIT_LOG_FORMAT: modsec_v3_json
     volumes:
       - rules-render:/render/modsecurity-rules
       - sites-render:/render/nginx-sites
       - log-sink-config:/render/log-sinks
+      - error-pages-render:/render/error-pages
       - audit-logs:/data/logs:ro
     ports:
       - "8000:8000"
@@ -43,7 +45,7 @@ services:
       - "5173:5173"
 
   # The traffic path ("jalur") - nginx + ModSecurity v3 + whatever rules and
-  # sites the dashboard has rendered. See waf-engine/README.md.
+  # sites the dashboard has rendered. See CLAUDE.md.
   waf-engine:
     build: ./waf-engine
     depends_on:
@@ -55,6 +57,7 @@ services:
     volumes:
       - rules-render:/etc/modsecurity.d/dashboard-rules
       - sites-render:/etc/nginx/conf.d/dashboard-sites
+      - error-pages-render:/usr/share/nginx/sentinel-error-pages
       - audit-logs:/var/log/modsecurity/audit
     ports:
       - "8080:8080"
@@ -73,5 +76,6 @@ volumes:
   rules-render:
   sites-render:
   log-sink-config:
+  error-pages-render:
   audit-logs:
   log-forwarder-state:
