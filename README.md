@@ -36,6 +36,10 @@ auditable dan gampang di-manage dari satu tempat.
   (full akses + kelola user lain), **Operator** (kelola rule/site/error
   page sehari-hari), **Viewer** (read-only). Dikelola dari tab **Team**
   (cuma keliatan buat Admin).
+- **WAF Engine Settings** - atur perilaku global ModSecurity langsung dari
+  dashboard (mode audit logging, limit ukuran body request/response, MIME
+  type yang diperiksa) - gak perlu lagi ubah environment variable di
+  `docker-compose.yml`. Khusus Admin, di tab **Settings**.
 
 ## Arsitektur
 
