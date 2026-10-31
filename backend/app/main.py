@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import logs, rule_sets, settings_api, sites, stats
+from app.api import error_pages, logs, rule_sets, settings_api, sites, stats
 from app.config import get_settings
 from app.db import Base, SessionLocal, engine
 from app.services import importer, render_service
@@ -18,6 +18,7 @@ app.add_middleware(
 app.include_router(rule_sets.router)
 app.include_router(sites.router)
 app.include_router(settings_api.router)
+app.include_router(error_pages.router)
 app.include_router(logs.router)
 app.include_router(stats.router)
 

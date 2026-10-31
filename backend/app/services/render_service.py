@@ -4,7 +4,8 @@ import shutil
 from sqlalchemy.orm import Session
 
 from app.config import Settings
-from app.models import FileKind, LogSink, Rule, RuleFile, RuleSet, Site
+from app.default_error_pages import DEFAULT_ERROR_PAGES
+from app.models import ErrorPage, FileKind, LogSink, Rule, RuleFile, RuleSet, Site
 
 
 def _clear_dir(path) -> None:
@@ -74,6 +75,8 @@ def render_sites(db: Session, settings: Settings) -> None:
     listen {site.listen_port};
     server_name {site.domain};
 
+    include includes/sentinel-error-pages.conf;
+
     location / {{
         client_max_body_size 0;
         proxy_set_header Host $host;
@@ -90,6 +93,15 @@ def render_sites(db: Session, settings: Settings) -> None:
         (base / f"site-{site.id}.conf").write_text(conf)
 
 
+def render_error_pages(db: Session, settings: Settings) -> None:
+    base = settings.error_pages_render_dir
+    base.mkdir(parents=True, exist_ok=True)
+    customized = {row.status_code: row.html_content for row in db.query(ErrorPage).all()}
+    for status_code, default_html in DEFAULT_ERROR_PAGES.items():
+        html = customized.get(status_code, default_html)
+        (base / f"{status_code}.html").write_text(html)
+
+
 def render_log_sinks(db: Session, settings: Settings) -> None:
     sinks = db.query(LogSink).filter(LogSink.enabled.is_(True)).all()
     data = [{"name": s.name, "protocol": s.protocol.value, "host": s.host, "port": s.port} for s in sinks]
@@ -101,3 +113,4 @@ def render_all(db: Session, settings: Settings) -> None:
     render_rules(db, settings)
     render_sites(db, settings)
     render_log_sinks(db, settings)
+    render_error_pages(db, settings)

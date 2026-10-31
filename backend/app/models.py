@@ -115,3 +115,19 @@ class LogSink(Base):
     port: Mapped[int] = mapped_column(Integer, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ErrorPage(Base):
+    """A customized error page for one status code. A missing row means
+    "use the built-in default" - see app/default_error_pages.py. Only the
+    fixed set of status codes baked into waf-engine/error-pages.conf are
+    ever meaningful here (see CLAUDE.md).
+    """
+
+    __tablename__ = "error_pages"
+
+    status_code: Mapped[int] = mapped_column(Integer, primary_key=True)
+    html_content: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

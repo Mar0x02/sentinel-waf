@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     # the rendered log sink configuration (see app/services/render_service.py).
     log_sink_config_path: Path = Path("/render/log-sinks/log-sinks.json")
 
+    # Shared volume (also mounted into the waf-engine container) holding
+    # rendered <status_code>.html files - see app/default_error_pages.py
+    # and waf-engine/error-pages.conf.
+    error_pages_render_dir: Path = Path("/render/error-pages")
+
     # Directory containing ModSecurity audit log file(s) to read from.
     audit_log_dir: Path = Path("/data/logs")
 
