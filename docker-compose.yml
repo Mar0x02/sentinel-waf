@@ -1,0 +1,77 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: waf
+      POSTGRES_PASSWORD: waf
+      POSTGRES_DB: waf
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U waf"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      WAF_DATABASE_URL: postgresql+psycopg2://waf:waf@postgres:5432/waf
+      WAF_RULES_RENDER_DIR: /render/modsecurity-rules
+      WAF_SITES_RENDER_DIR: /render/nginx-sites
+      WAF_LOG_SINK_CONFIG_PATH: /render/log-sinks/log-sinks.json
+      WAF_AUDIT_LOG_DIR: /data/logs
+      WAF_AUDIT_LOG_FORMAT: modsec_v3_json
+    volumes:
+      - rules-render:/render/modsecurity-rules
+      - sites-render:/render/nginx-sites
+      - log-sink-config:/render/log-sinks
+      - audit-logs:/data/logs:ro
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000
+    ports:
+      - "5173:5173"
+
+  # The traffic path ("jalur") - nginx + ModSecurity v3 + whatever rules and
+  # sites the dashboard has rendered. See waf-engine/README.md.
+  waf-engine:
+    build: ./waf-engine
+    depends_on:
+      - backend
+    environment:
+      MODSEC_AUDIT_LOG: /var/log/modsecurity/audit/audit.log
+      MODSEC_AUDIT_LOG_FORMAT: JSON
+      MODSEC_AUDIT_LOG_TYPE: Serial
+    volumes:
+      - rules-render:/etc/modsecurity.d/dashboard-rules
+      - sites-render:/etc/nginx/conf.d/dashboard-sites
+      - audit-logs:/var/log/modsecurity/audit
+    ports:
+      - "8080:8080"
+
+  log-forwarder:
+    build: ./log-forwarder
+    depends_on:
+      - backend
+    volumes:
+      - audit-logs:/data/logs:ro
+      - log-sink-config:/render/log-sinks:ro
+      - log-forwarder-state:/state
+
+volumes:
+  pg-data:
+  rules-render:
+  sites-render:
+  log-sink-config:
+  audit-logs:
+  log-forwarder-state:
