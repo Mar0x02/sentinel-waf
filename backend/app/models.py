@@ -203,3 +203,22 @@ class EngineSettings(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class DiscordWebhook(Base):
+    """A Discord channel to notify on every blocked request. Deliberately
+    separate from LogSink (syslog) rather than a shared "sink with a type"
+    table - different payload shape (Discord embeds vs syslog lines),
+    different delivery mechanics (rate-limited HTTP POST vs a socket
+    write), and admin-only for the same reason log sinks are: it's an
+    external destination for WAF activity data, not day-to-day rule/site
+    ops. See log-forwarder/forwarder.py for the actual delivery + batching.
+    """
+
+    __tablename__ = "discord_webhooks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    webhook_url: Mapped[str] = mapped_column(String, nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

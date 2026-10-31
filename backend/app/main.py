@@ -1,7 +1,7 @@
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, engine_settings, error_pages, logs, rule_sets, settings_api, sites, stats, users
+from app.api import auth, discord, engine_settings, error_pages, logs, rule_sets, settings_api, sites, stats, users
 from app.auth import ensure_admin_seeded, get_current_user
 from app.config import get_settings
 from app.db import Base, SessionLocal, engine
@@ -34,6 +34,7 @@ app.include_router(error_pages.router, dependencies=logged_in)
 app.include_router(logs.router, dependencies=logged_in)
 app.include_router(stats.router, dependencies=logged_in)
 app.include_router(engine_settings.router, dependencies=logged_in)
+app.include_router(discord.router, dependencies=logged_in)
 
 
 @app.on_event("startup")

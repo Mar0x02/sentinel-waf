@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.default_error_pages import DEFAULT_ERROR_PAGES
-from app.models import EngineSettings, ErrorPage, FileKind, LogSink, Rule, RuleFile, RuleSet, Site
+from app.models import DiscordWebhook, EngineSettings, ErrorPage, FileKind, LogSink, Rule, RuleFile, RuleSet, Site
 
 
 def _clear_dir(path) -> None:
@@ -165,9 +165,17 @@ def render_log_sinks(db: Session, settings: Settings) -> None:
     settings.log_sink_config_path.write_text(json.dumps(data, indent=2))
 
 
+def render_discord_webhooks(db: Session, settings: Settings) -> None:
+    webhooks = db.query(DiscordWebhook).filter(DiscordWebhook.enabled.is_(True)).all()
+    data = [{"name": w.name, "webhook_url": w.webhook_url} for w in webhooks]
+    settings.discord_webhook_config_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.discord_webhook_config_path.write_text(json.dumps(data, indent=2))
+
+
 def render_all(db: Session, settings: Settings) -> None:
     render_rules(db, settings)
     render_sites(db, settings)
     render_log_sinks(db, settings)
     render_error_pages(db, settings)
     render_engine_settings(db, settings)
+    render_discord_webhooks(db, settings)

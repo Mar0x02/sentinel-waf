@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     # the rendered log sink configuration (see app/services/render_service.py).
     log_sink_config_path: Path = Path("/render/log-sinks/log-sinks.json")
 
+    # Shared volume (also mounted into the log-forwarder container) holding
+    # the rendered Discord webhook configuration.
+    discord_webhook_config_path: Path = Path("/render/discord/webhooks.json")
+
     # Shared volume (also mounted into the waf-engine container) holding
     # rendered <status_code>.html files - see app/default_error_pages.py
     # and waf-engine/error-pages.conf.
