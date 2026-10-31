@@ -13,5 +13,10 @@ COPY setup.conf.template /etc/nginx/templates/modsecurity.d/setup.conf.template
 # into /etc/nginx/conf.d/dashboard-sites/ - not a template, never changes.
 COPY dashboard-sites-include.conf /etc/nginx/conf.d/00-dashboard-sites.conf
 
+# Custom block/error page wiring (error_page directives + internal
+# location serving the dashboard-rendered HTML). Static, baked at build
+# time - only the HTML files in the mounted volume change at runtime.
+COPY error-pages.conf /etc/nginx/includes/sentinel-error-pages.conf
+
 COPY docker-entrypoint.d/99-watch-and-reload.sh /docker-entrypoint.d/99-watch-and-reload.sh
 RUN chmod +x /docker-entrypoint.d/99-watch-and-reload.sh
