@@ -19,9 +19,17 @@ from app.schemas.rule_sets import (
     RuleFileOut,
     RuleOut,
     RuleSetOut,
+    TunableGroupOut,
+    TunableGroupUpdate,
 )
-from app.services import crs_tuning, importer, render_service
+from app.services import crs_tuning, importer, render_service, tunable_scanner
 from app.services.importer import CUSTOM_RULE_SET_SLUG
+
+# Rule IDs already covered by the dedicated paranoia/anomaly form
+# (crs_tuning.py) plus CRS's own version marker (900990, not a real
+# tunable) - excluded from the generic scanner's results so the Rules
+# page doesn't show the same knob twice under two different UIs.
+_EXCLUDED_TUNABLE_IDS = {"900000", "900001", "900110", "900990"}
 
 router = APIRouter(prefix="/api", tags=["rules"])
 
@@ -191,6 +199,38 @@ def update_tuning(
     importer.update_custom_rule_file(db, setup_file, new_content)
     _rerender(db, settings)
     return crs_tuning.read_tuning(new_content)
+
+
+@router.get("/rule-sets/{rule_set_id}/tunables", response_model=list[TunableGroupOut])
+def list_tunables(rule_set_id: int, db: Session = Depends(get_db)):
+    setup_file = _get_setup_file(db, rule_set_id)
+    groups = tunable_scanner.scan_tunables(setup_file.content, exclude_rule_ids=_EXCLUDED_TUNABLE_IDS)
+    return [TunableGroupOut(**vars(g)) for g in groups]
+
+
+@router.put("/rule-sets/{rule_set_id}/tunables/{tunable_rule_id}", response_model=TunableGroupOut)
+def update_tunable(
+    rule_set_id: int,
+    tunable_rule_id: str,
+    payload: TunableGroupUpdate,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    _=Depends(require_write_access),
+):
+    if tunable_rule_id in _EXCLUDED_TUNABLE_IDS:
+        raise HTTPException(400, "Use the dedicated tuning endpoint for this one")
+    setup_file = _get_setup_file(db, rule_set_id)
+    try:
+        new_content = tunable_scanner.apply_tunable(
+            setup_file.content, tunable_rule_id, payload.variables, payload.is_active
+        )
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    importer.update_custom_rule_file(db, setup_file, new_content)
+    _rerender(db, settings)
+    groups = tunable_scanner.scan_tunables(new_content, exclude_rule_ids=set())
+    updated = next(g for g in groups if g.rule_id == tunable_rule_id)
+    return TunableGroupOut(**vars(updated))
 
 
 @router.post("/rule-files", response_model=RuleFileOut, status_code=201)

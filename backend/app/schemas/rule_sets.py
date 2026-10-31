@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -91,6 +92,31 @@ class CrsTuningOut(BaseModel):
     detection_paranoia_level: int
     inbound_anomaly_score_threshold: int
     outbound_anomaly_score_threshold: int
+
+
+class TunableGroupOut(BaseModel):
+    rule_id: str
+    description: str | None
+    is_active: bool
+    variables: dict[str, str]
+
+
+class TunableGroupUpdate(BaseModel):
+    is_active: bool
+    variables: dict[str, str] = Field(max_length=20)
+
+    @field_validator("variables")
+    @classmethod
+    def validate_variables(cls, v: dict[str, str]) -> dict[str, str]:
+        # Values are interpolated directly into generated ModSecurity
+        # config text - reject anything that could break out of the
+        # setvar:tx.X=<value> slot it's substituted into.
+        for name, value in v.items():
+            if not re.fullmatch(r"[A-Za-z0-9_]+", name):
+                raise ValueError(f"Invalid variable name: {name}")
+            if re.search(r'["\n\r,]', value):
+                raise ValueError(f"Value for {name} may not contain quotes, commas, or newlines")
+        return v
 
 
 class CrsTuningUpdate(BaseModel):
