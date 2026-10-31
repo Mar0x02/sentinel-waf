@@ -17,6 +17,10 @@ auditable dan gampang di-manage dari satu tempat.
   Setiap rule yang masuk tercatat sebagai baris di database, bisa
   diaktifkan/nonaktifkan per file rule atau per rule ID individual (lewat
   `SecRuleRemoveById`, tanpa pernah menyentuh file asli vendor).
+- **CRS Tuning** - atur paranoia level & anomaly score threshold
+  (blocking/detection/inbound/outbound) langsung dari form, gak perlu tau
+  syntax ModSecurity. `crs-setup.conf` juga bisa diedit manual kalau mau
+  atur hal lain di luar itu (file rule bawaan CRS lainnya tetap terkunci).
 - **Reverse proxy (Sites)** - daftarkan domain + upstream backend dari
   dashboard, langsung jadi server block nginx yang otomatis dilindungi
   oleh rule yang aktif.
