@@ -170,3 +170,28 @@ class AppSecret(Base):
 
     key: Mapped[str] = mapped_column(String, primary_key=True)
     value: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class EngineSettings(Base):
+    """Global ModSecurity engine directives (SecAuditEngine, body
+    inspection limits, etc.) - applies to every site, not per rule set.
+    Singleton row (always id=1), get-or-create like AppSecret. Rendered
+    into its own dashboard-controlled file that loads right after
+    modsecurity.conf and overrides whatever the waf-engine image's env-var
+    defaults set - see render_service.render_engine_settings() and
+    CLAUDE.md.
+    """
+
+    __tablename__ = "engine_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    audit_engine: Mapped[str] = mapped_column(String, default="RelevantOnly", nullable=False)
+    audit_log_relevant_status: Mapped[str] = mapped_column(String, default="^(?:5|4(?!04))", nullable=False)
+    request_body_access: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    response_body_access: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    request_body_limit: Mapped[int] = mapped_column(Integer, default=13107200, nullable=False)
+    response_body_limit: Mapped[int] = mapped_column(Integer, default=1048576, nullable=False)
+    response_body_mime_type: Mapped[str] = mapped_column(String, default="text/html text/plain", nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.default_error_pages import DEFAULT_ERROR_PAGES
-from app.models import ErrorPage, FileKind, LogSink, Rule, RuleFile, RuleSet, Site
+from app.models import EngineSettings, ErrorPage, FileKind, LogSink, Rule, RuleFile, RuleSet, Site
 
 
 def _clear_dir(path) -> None:
@@ -102,6 +102,51 @@ def render_error_pages(db: Session, settings: Settings) -> None:
         (base / f"{status_code}.html").write_text(html)
 
 
+def get_or_create_engine_settings(db: Session) -> EngineSettings:
+    """Shared by the API and the startup render pass. Must actually
+    persist the row (not just construct it in memory) - SQLAlchemy only
+    fills in a column's `default=` at INSERT time, so an unsaved
+    `EngineSettings(id=1)` has every other field as plain Python `None`,
+    not the model's defaults. Confirmed by a real bug: before this used
+    add+commit+refresh here, the very first render (before anyone ever
+    opened the Settings page) wrote `SecRequestBodyLimit None` etc.
+    straight into the rendered ModSecurity config.
+    """
+    row = db.get(EngineSettings, 1)
+    if row is None:
+        row = EngineSettings(id=1)
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+    return row
+
+
+def render_engine_settings(db: Session, settings: Settings) -> None:
+    """Writes the single global ModSecurity engine directives file. Values
+    are validated/sanitized at the API layer (schemas/engine_settings.py)
+    before ever reaching here, since they're interpolated directly into
+    ModSecurity config text.
+    """
+    base = settings.engine_settings_render_dir
+    _clear_dir(base)
+    row = get_or_create_engine_settings(db)
+
+    def _onoff(flag: bool) -> str:
+        return "On" if flag else "Off"
+
+    lines = [
+        "# Managed by the dashboard - do not edit directly, see the Settings page.",
+        f"SecAuditEngine {row.audit_engine}",
+        f'SecAuditLogRelevantStatus "{row.audit_log_relevant_status}"',
+        f"SecRequestBodyAccess {_onoff(row.request_body_access)}",
+        f"SecResponseBodyAccess {_onoff(row.response_body_access)}",
+        f"SecRequestBodyLimit {row.request_body_limit}",
+        f"SecResponseBodyLimit {row.response_body_limit}",
+        f"SecResponseBodyMimeType {row.response_body_mime_type}",
+    ]
+    (base / "000-engine-settings.conf").write_text("\n".join(lines) + "\n")
+
+
 def render_log_sinks(db: Session, settings: Settings) -> None:
     sinks = db.query(LogSink).filter(LogSink.enabled.is_(True)).all()
     data = [{"name": s.name, "protocol": s.protocol.value, "host": s.host, "port": s.port} for s in sinks]
@@ -114,3 +159,4 @@ def render_all(db: Session, settings: Settings) -> None:
     render_sites(db, settings)
     render_log_sinks(db, settings)
     render_error_pages(db, settings)
+    render_engine_settings(db, settings)
