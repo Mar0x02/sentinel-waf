@@ -10,10 +10,11 @@ import { LogsPage } from "./pages/LogsPage";
 import { RulesPage } from "./pages/RulesPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SitesPage } from "./pages/SitesPage";
+import { TeamPage } from "./pages/TeamPage";
 
 export function App() {
   const { t } = useLanguage();
-  const { loading, isAuthenticated, mustChangePassword } = useAuth();
+  const { loading, isAuthenticated, mustChangePassword, isAdmin } = useAuth();
 
   if (loading) {
     return (
@@ -37,6 +38,7 @@ export function App() {
           <Route path="/sites" element={<SitesPage />} />
           <Route path="/error-pages" element={<ErrorPagesPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          {isAdmin && <Route path="/team" element={<TeamPage />} />}
         </Routes>
       </div>
     </div>

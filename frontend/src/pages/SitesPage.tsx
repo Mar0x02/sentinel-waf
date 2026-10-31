@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { api, Site } from "../api/client";
+import { useAuth } from "../auth/AuthContext";
 import { useLanguage } from "../i18n/LanguageContext";
 
 const emptyForm = { name: "", domain: "", upstream_url: "", listen_port: 8080 };
 
 export function SitesPage() {
   const { t } = useLanguage();
+  const { canWrite } = useAuth();
   const [sites, setSites] = useState<Site[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -68,20 +70,24 @@ export function SitesPage() {
                 <td>{s.upstream_url}</td>
                 <td>{s.listen_port}</td>
                 <td style={{ display: "flex", gap: 8 }}>
-                  <button className="btn" onClick={() => startEdit(s)}>
-                    {t("common.edit")}
-                  </button>
-                  <button className="btn" onClick={() => api.toggleSite(s.id, !s.enabled).then(refresh)}>
-                    {s.enabled ? t("common.disable") : t("common.enable")}
-                  </button>
-                  <button
-                    className="btn"
-                    onClick={() => {
-                      if (confirm(t("sites.deleteConfirm", { name: s.name }))) api.deleteSite(s.id).then(refresh);
-                    }}
-                  >
-                    {t("common.delete")}
-                  </button>
+                  {canWrite && (
+                    <>
+                      <button className="btn" onClick={() => startEdit(s)}>
+                        {t("common.edit")}
+                      </button>
+                      <button className="btn" onClick={() => api.toggleSite(s.id, !s.enabled).then(refresh)}>
+                        {s.enabled ? t("common.disable") : t("common.enable")}
+                      </button>
+                      <button
+                        className="btn"
+                        onClick={() => {
+                          if (confirm(t("sites.deleteConfirm", { name: s.name }))) api.deleteSite(s.id).then(refresh);
+                        }}
+                      >
+                        {t("common.delete")}
+                      </button>
+                    </>
+                  )}
                 </td>
               </tr>
             ))}
@@ -96,6 +102,7 @@ export function SitesPage() {
         </table>
       </div>
 
+      {canWrite && (
       <div className="card">
         <h3>{editingId !== null ? t("sites.editSite") : t("sites.addSite")}</h3>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -138,6 +145,7 @@ export function SitesPage() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

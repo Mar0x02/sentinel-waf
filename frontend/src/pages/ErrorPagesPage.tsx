@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { api, ErrorPage } from "../api/client";
+import { useAuth } from "../auth/AuthContext";
 import { useLanguage } from "../i18n/LanguageContext";
 
 export function ErrorPagesPage() {
   const { t } = useLanguage();
+  const { canWrite } = useAuth();
   const [pages, setPages] = useState<ErrorPage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ statusCode: number; html: string } | null>(null);
@@ -49,12 +51,16 @@ export function ErrorPagesPage() {
               </span>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button className="btn" onClick={() => startEdit(p)}>
-                {t("common.edit")}
-              </button>
-              <button className="btn" disabled={!p.is_customized} onClick={() => reset(p.status_code)}>
-                {t("errorPages.resetToDefault")}
-              </button>
+              {canWrite && (
+                <>
+                  <button className="btn" onClick={() => startEdit(p)}>
+                    {t("common.edit")}
+                  </button>
+                  <button className="btn" disabled={!p.is_customized} onClick={() => reset(p.status_code)}>
+                    {t("errorPages.resetToDefault")}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         ))}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, LogSink } from "../api/client";
+import { useAuth } from "../auth/AuthContext";
 import { ChangePasswordForm } from "../components/ChangePasswordForm";
 import { useLanguage } from "../i18n/LanguageContext";
 
@@ -7,6 +8,7 @@ const emptyForm = { name: "", protocol: "udp" as "udp" | "tcp", host: "", port: 
 
 export function SettingsPage() {
   const { t } = useLanguage();
+  const { isAdmin } = useAuth();
   const [sinks, setSinks] = useState<LogSink[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -55,17 +57,21 @@ export function SettingsPage() {
                 <td>{s.host}</td>
                 <td>{s.port}</td>
                 <td style={{ display: "flex", gap: 8 }}>
-                  <button className="btn" onClick={() => api.toggleLogSink(s.id, !s.enabled).then(refresh)}>
-                    {s.enabled ? t("common.disable") : t("common.enable")}
-                  </button>
-                  <button
-                    className="btn"
-                    onClick={() => {
-                      if (confirm(t("settings.deleteConfirm", { name: s.name }))) api.deleteLogSink(s.id).then(refresh);
-                    }}
-                  >
-                    {t("common.delete")}
-                  </button>
+                  {isAdmin && (
+                    <>
+                      <button className="btn" onClick={() => api.toggleLogSink(s.id, !s.enabled).then(refresh)}>
+                        {s.enabled ? t("common.disable") : t("common.enable")}
+                      </button>
+                      <button
+                        className="btn"
+                        onClick={() => {
+                          if (confirm(t("settings.deleteConfirm", { name: s.name }))) api.deleteLogSink(s.id).then(refresh);
+                        }}
+                      >
+                        {t("common.delete")}
+                      </button>
+                    </>
+                  )}
                 </td>
               </tr>
             ))}
@@ -80,35 +86,37 @@ export function SettingsPage() {
         </table>
       </div>
 
-      <div className="card">
-        <h3>{t("settings.addSink")}</h3>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <input
-            placeholder={t("settings.namePlaceholder")}
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
-          <select value={form.protocol} onChange={(e) => setForm({ ...form, protocol: e.target.value as "udp" | "tcp" })}>
-            <option value="udp">UDP</option>
-            <option value="tcp">TCP</option>
-          </select>
-          <input
-            placeholder={t("settings.hostPlaceholder")}
-            value={form.host}
-            onChange={(e) => setForm({ ...form, host: e.target.value })}
-          />
-          <input
-            type="number"
-            placeholder={t("settings.portPlaceholder")}
-            style={{ width: 100 }}
-            value={form.port}
-            onChange={(e) => setForm({ ...form, port: Number(e.target.value) })}
-          />
-          <button className="btn" onClick={submit}>
-            {t("settings.addSink")}
-          </button>
+      {isAdmin && (
+        <div className="card">
+          <h3>{t("settings.addSink")}</h3>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input
+              placeholder={t("settings.namePlaceholder")}
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+            <select value={form.protocol} onChange={(e) => setForm({ ...form, protocol: e.target.value as "udp" | "tcp" })}>
+              <option value="udp">UDP</option>
+              <option value="tcp">TCP</option>
+            </select>
+            <input
+              placeholder={t("settings.hostPlaceholder")}
+              value={form.host}
+              onChange={(e) => setForm({ ...form, host: e.target.value })}
+            />
+            <input
+              type="number"
+              placeholder={t("settings.portPlaceholder")}
+              style={{ width: 100 }}
+              value={form.port}
+              onChange={(e) => setForm({ ...form, port: Number(e.target.value) })}
+            />
+            <button className="btn" onClick={submit}>
+              {t("settings.addSink")}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       <h2>{t("auth.accountSection")}</h2>
       <div className="card">

@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { api, CatalogEntry, RuleFile, RuleRow, RuleSet } from "../api/client";
+import { useAuth } from "../auth/AuthContext";
 import { useLanguage } from "../i18n/LanguageContext";
 
 function RuleFilesPanel({ ruleSet, onChanged }: { ruleSet: RuleSet; onChanged: () => void }) {
   const { t } = useLanguage();
+  const { canWrite } = useAuth();
   const [files, setFiles] = useState<RuleFile[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ id: number; filename: string; content: string } | null>(null);
@@ -62,15 +64,17 @@ function RuleFilesPanel({ ruleSet, onChanged }: { ruleSet: RuleSet; onChanged: (
               <button className="btn" onClick={() => openRules(f)}>
                 {t("rules.viewRules")}
               </button>
-              {isCustom && (
+              {isCustom && canWrite && (
                 <button className="btn" onClick={() => openEditor(f)}>
                   {t("common.edit")}
                 </button>
               )}
-              <button className="btn" onClick={() => api.toggleRuleFile(f.id, !f.enabled).then(() => { refresh(); onChanged(); })}>
-                {f.enabled ? t("common.disable") : t("common.enable")}
-              </button>
-              {isCustom && (
+              {canWrite && (
+                <button className="btn" onClick={() => api.toggleRuleFile(f.id, !f.enabled).then(() => { refresh(); onChanged(); })}>
+                  {f.enabled ? t("common.disable") : t("common.enable")}
+                </button>
+              )}
+              {isCustom && canWrite && (
                 <button
                   className="btn"
                   onClick={() => {
@@ -89,7 +93,7 @@ function RuleFilesPanel({ ruleSet, onChanged }: { ruleSet: RuleSet; onChanged: (
         <p className="muted">{t("rules.noRuleFiles")}</p>
       )}
 
-      {isCustom && (
+      {isCustom && canWrite && (
         <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
           <input
             placeholder={t("rules.newFilePlaceholder")}
@@ -138,18 +142,20 @@ function RuleFilesPanel({ ruleSet, onChanged }: { ruleSet: RuleSet; onChanged: (
                   <td>{r.rule_id ?? "-"}</td>
                   <td>{r.message ?? "-"}</td>
                   <td>
-                    <button
-                      className="btn"
-                      disabled={!r.rule_id}
-                      onClick={() =>
-                        api.toggleRule(r.id, !r.enabled).then(() => {
-                          openRules(files.find((f) => f.id === rulesOf.fileId)!);
-                          onChanged();
-                        })
-                      }
-                    >
-                      {r.enabled ? t("common.disable") : t("common.enable")}
-                    </button>
+                    {canWrite && (
+                      <button
+                        className="btn"
+                        disabled={!r.rule_id}
+                        onClick={() =>
+                          api.toggleRule(r.id, !r.enabled).then(() => {
+                            openRules(files.find((f) => f.id === rulesOf.fileId)!);
+                            onChanged();
+                          })
+                        }
+                      >
+                        {r.enabled ? t("common.disable") : t("common.enable")}
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -173,6 +179,7 @@ function RuleFilesPanel({ ruleSet, onChanged }: { ruleSet: RuleSet; onChanged: (
 
 export function RulesPage() {
   const { t } = useLanguage();
+  const { canWrite } = useAuth();
   const [ruleSets, setRuleSets] = useState<RuleSet[]>([]);
   const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
   const [expanded, setExpanded] = useState<number | null>(null);
@@ -224,42 +231,46 @@ export function RulesPage() {
       <h2>{t("rules.title")}</h2>
       {error && <p>{error}</p>}
 
-      <div className="card">
-        <h3>{t("rules.importCrsTitle")}</h3>
-        {catalog.map((entry) => {
-          const imported = ruleSets.some((rs) => rs.source_url === entry.url);
-          return (
-            <div className="rule-file-row" key={entry.id}>
-              <div>
-                <strong>
-                  {entry.name} {entry.version}
-                </strong>
-                <div className="muted">{entry.description}</div>
+      {canWrite && (
+        <div className="card">
+          <h3>{t("rules.importCrsTitle")}</h3>
+          {catalog.map((entry) => {
+            const imported = ruleSets.some((rs) => rs.source_url === entry.url);
+            return (
+              <div className="rule-file-row" key={entry.id}>
+                <div>
+                  <strong>
+                    {entry.name} {entry.version}
+                  </strong>
+                  <div className="muted">{entry.description}</div>
+                </div>
+                <button className="btn" disabled={busy || imported} onClick={() => doImportCatalog(entry.id)}>
+                  {imported ? t("rules.imported") : busy ? t("rules.importing") : t("rules.import")}
+                </button>
               </div>
-              <button className="btn" disabled={busy || imported} onClick={() => doImportCatalog(entry.id)}>
-                {imported ? t("rules.imported") : busy ? t("rules.importing") : t("rules.import")}
-              </button>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="card">
-        <h3>{t("rules.importUrlTitle")}</h3>
-        <p className="muted">{t("rules.importUrlDesc")}</p>
-        <div style={{ display: "flex", gap: 8 }}>
-          <input placeholder={t("rules.namePlaceholder")} value={urlName} onChange={(e) => setUrlName(e.target.value)} />
-          <input
-            placeholder={t("rules.urlPlaceholder")}
-            style={{ flex: 1 }}
-            value={urlUrl}
-            onChange={(e) => setUrlUrl(e.target.value)}
-          />
-          <button className="btn" disabled={busy} onClick={doImportUrl}>
-            {t("rules.import")}
-          </button>
+            );
+          })}
         </div>
-      </div>
+      )}
+
+      {canWrite && (
+        <div className="card">
+          <h3>{t("rules.importUrlTitle")}</h3>
+          <p className="muted">{t("rules.importUrlDesc")}</p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input placeholder={t("rules.namePlaceholder")} value={urlName} onChange={(e) => setUrlName(e.target.value)} />
+            <input
+              placeholder={t("rules.urlPlaceholder")}
+              style={{ flex: 1 }}
+              value={urlUrl}
+              onChange={(e) => setUrlUrl(e.target.value)}
+            />
+            <button className="btn" disabled={busy} onClick={doImportUrl}>
+              {t("rules.import")}
+            </button>
+          </div>
+        </div>
+      )}
 
       <h2>{t("rules.installedTitle")}</h2>
       {ruleSets.map((rs) => (
@@ -276,10 +287,12 @@ export function RulesPage() {
               <button className="btn" onClick={() => setExpanded(expanded === rs.id ? null : rs.id)}>
                 {expanded === rs.id ? t("rules.hideFiles") : t("rules.showFiles")}
               </button>
-              <button className="btn" onClick={() => api.toggleRuleSet(rs.id, !rs.enabled).then(refresh)}>
-                {rs.enabled ? t("common.disable") : t("common.enable")}
-              </button>
-              {rs.slug !== "custom" && (
+              {canWrite && (
+                <button className="btn" onClick={() => api.toggleRuleSet(rs.id, !rs.enabled).then(refresh)}>
+                  {rs.enabled ? t("common.disable") : t("common.enable")}
+                </button>
+              )}
+              {canWrite && rs.slug !== "custom" && (
                 <button
                   className="btn"
                   onClick={() => {

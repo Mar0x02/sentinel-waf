@@ -154,20 +154,48 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
+export type Role = "admin" | "operator" | "viewer";
+
 export interface LoginResult {
   access_token: string;
+  must_change_password: boolean;
+  role: Role;
+}
+
+export interface Me {
+  username: string;
+  role: Role;
   must_change_password: boolean;
 }
 
 export const authApi = {
   login: (username: string, password: string) =>
     request<LoginResult>("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }),
-  me: () => request<{ username: string; must_change_password: boolean }>("/api/auth/me"),
+  me: () => request<Me>("/api/auth/me"),
   changePassword: (current_password: string, new_password: string) =>
-    request<{ username: string; must_change_password: boolean }>("/api/auth/change-password", {
+    request<Me>("/api/auth/change-password", {
       method: "POST",
       body: JSON.stringify({ current_password, new_password }),
     }),
+};
+
+export interface TeamUser {
+  id: number;
+  username: string;
+  role: Role;
+  must_change_password: boolean;
+  created_at: string;
+}
+
+export const usersApi = {
+  list: () => request<TeamUser[]>("/api/users"),
+  create: (username: string, password: string, role: Role) =>
+    request<TeamUser>("/api/users", { method: "POST", body: JSON.stringify({ username, password, role }) }),
+  updateRole: (id: number, role: Role) =>
+    request<TeamUser>(`/api/users/${id}/role`, { method: "PATCH", body: JSON.stringify({ role }) }),
+  resetPassword: (id: number) =>
+    request<{ username: string; new_password: string }>(`/api/users/${id}/reset-password`, { method: "POST" }),
+  delete: (id: number) => request<void>(`/api/users/${id}`, { method: "DELETE" }),
 };
 
 export const api = {

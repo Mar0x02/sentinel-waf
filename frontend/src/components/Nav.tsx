@@ -4,7 +4,7 @@ import { useLanguage } from "../i18n/LanguageContext";
 
 export function Nav() {
   const { lang, setLang, t } = useLanguage();
-  const { username, logout } = useAuth();
+  const { username, isAdmin, logout } = useAuth();
 
   return (
     <nav className="nav">
@@ -27,6 +27,11 @@ export function Nav() {
       <NavLink to="/settings" className={({ isActive }) => (isActive ? "active" : "")}>
         {t("nav.settings")}
       </NavLink>
+      {isAdmin && (
+        <NavLink to="/team" className={({ isActive }) => (isActive ? "active" : "")}>
+          {t("nav.team")}
+        </NavLink>
+      )}
 
       <div style={{ marginTop: "auto" }}>
         {username && (
