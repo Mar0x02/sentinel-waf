@@ -79,6 +79,14 @@ export interface LogSink {
   created_at: string;
 }
 
+export interface DiscordWebhook {
+  id: number;
+  name: string;
+  webhook_url: string;
+  enabled: boolean;
+  created_at: string;
+}
+
 export interface ErrorPage {
   status_code: number;
   title: string;
@@ -228,6 +236,15 @@ export const engineSettingsApi = {
   get: () => request<EngineSettings>("/api/engine-settings"),
   update: (payload: Omit<EngineSettings, "updated_at">) =>
     request<EngineSettings>("/api/engine-settings", { method: "PUT", body: JSON.stringify(payload) }),
+};
+
+export const discordApi = {
+  list: () => request<DiscordWebhook[]>("/api/discord-webhooks"),
+  create: (name: string, webhook_url: string) =>
+    request<DiscordWebhook>("/api/discord-webhooks", { method: "POST", body: JSON.stringify({ name, webhook_url }) }),
+  toggle: (id: number, enabled: boolean) =>
+    request<DiscordWebhook>(`/api/discord-webhooks/${id}`, { method: "PATCH", body: JSON.stringify({ enabled }) }),
+  delete: (id: number) => request<void>(`/api/discord-webhooks/${id}`, { method: "DELETE" }),
 };
 
 export const api = {

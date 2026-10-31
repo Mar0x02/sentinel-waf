@@ -180,6 +180,16 @@ export const translations: Record<Lang, Record<string, string>> = {
     "settings.portPlaceholder": "Port",
     "settings.deleteConfirm": 'Delete sink "{name}"?',
 
+    "discord.title": "Discord Notifications",
+    "discord.description": "Every enabled webhook below gets a notification (batched, max 1 message per few seconds) whenever ModSecurity blocks a request. Admin only.",
+    "discord.name": "Name",
+    "discord.webhookUrl": "Webhook URL",
+    "discord.noWebhooks": "No Discord webhooks configured.",
+    "discord.addWebhook": "Add webhook",
+    "discord.namePlaceholder": "Name (e.g. #security-alerts)",
+    "discord.urlPlaceholder": "https://discord.com/api/webhooks/...",
+    "discord.deleteConfirm": 'Delete webhook "{name}"?',
+
     "engine.title": "WAF Engine Settings",
     "engine.description": "Global ModSecurity engine behavior - applies to every site. Admin only.",
     "engine.auditEngine": "Audit logging",
@@ -379,6 +389,16 @@ export const translations: Record<Lang, Record<string, string>> = {
     "settings.hostPlaceholder": "Host",
     "settings.portPlaceholder": "Port",
     "settings.deleteConfirm": 'Hapus sink "{name}"?',
+
+    "discord.title": "Notifikasi Discord",
+    "discord.description": "Tiap webhook aktif di bawah ini dapet notif (di-batch, maksimal 1 pesan tiap beberapa detik) pas ModSecurity nge-block request. Khusus Admin.",
+    "discord.name": "Nama",
+    "discord.webhookUrl": "Webhook URL",
+    "discord.noWebhooks": "Belum ada webhook Discord.",
+    "discord.addWebhook": "Tambah webhook",
+    "discord.namePlaceholder": "Nama (misal #security-alerts)",
+    "discord.urlPlaceholder": "https://discord.com/api/webhooks/...",
+    "discord.deleteConfirm": 'Hapus webhook "{name}"?',
 
     "engine.title": "Pengaturan WAF Engine",
     "engine.description": "Perilaku engine ModSecurity secara global - berlaku buat semua site. Khusus Admin.",

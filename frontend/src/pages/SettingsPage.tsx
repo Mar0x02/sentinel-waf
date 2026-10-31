@@ -1,10 +1,98 @@
 import { useEffect, useState } from "react";
-import { api, EngineSettings, engineSettingsApi, LogSink } from "../api/client";
+import { api, DiscordWebhook, discordApi, EngineSettings, engineSettingsApi, LogSink } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { ChangePasswordForm } from "../components/ChangePasswordForm";
 import { useLanguage } from "../i18n/LanguageContext";
 
 const emptyForm = { name: "", protocol: "udp" as "udp" | "tcp", host: "", port: 514 };
+const emptyDiscordForm = { name: "", webhook_url: "" };
+
+function DiscordWebhooksCard() {
+  const { t } = useLanguage();
+  const [webhooks, setWebhooks] = useState<DiscordWebhook[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState(emptyDiscordForm);
+
+  function refresh() {
+    discordApi.list().then(setWebhooks).catch((e) => setError(String(e)));
+  }
+
+  useEffect(refresh, []);
+
+  async function submit() {
+    if (!form.name.trim() || !form.webhook_url.trim()) return;
+    try {
+      await discordApi.create(form.name, form.webhook_url);
+      setForm(emptyDiscordForm);
+      refresh();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  return (
+    <div className="card">
+      <h3>{t("discord.title")}</h3>
+      <p className="muted">{t("discord.description")}</p>
+      {error && <p>{error}</p>}
+      <table>
+        <thead>
+          <tr>
+            <th>{t("discord.name")}</th>
+            <th>{t("discord.webhookUrl")}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {webhooks.map((w) => (
+            <tr key={w.id}>
+              <td>{w.name}</td>
+              <td style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {w.webhook_url}
+              </td>
+              <td style={{ display: "flex", gap: 8 }}>
+                <button className="btn" onClick={() => discordApi.toggle(w.id, !w.enabled).then(refresh)}>
+                  {w.enabled ? t("common.disable") : t("common.enable")}
+                </button>
+                <button
+                  className="btn"
+                  onClick={() => {
+                    if (confirm(t("discord.deleteConfirm", { name: w.name }))) discordApi.delete(w.id).then(refresh);
+                  }}
+                >
+                  {t("common.delete")}
+                </button>
+              </td>
+            </tr>
+          ))}
+          {webhooks.length === 0 && (
+            <tr>
+              <td colSpan={3} className="muted">
+                {t("discord.noWebhooks")}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+        <input
+          placeholder={t("discord.namePlaceholder")}
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+        />
+        <input
+          placeholder={t("discord.urlPlaceholder")}
+          style={{ flex: 1, minWidth: 240 }}
+          value={form.webhook_url}
+          onChange={(e) => setForm({ ...form, webhook_url: e.target.value })}
+        />
+        <button className="btn" onClick={submit}>
+          {t("discord.addWebhook")}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function EngineSettingsCard() {
   const { t } = useLanguage();
@@ -238,6 +326,7 @@ export function SettingsPage() {
         </div>
       )}
 
+      {isAdmin && <DiscordWebhooksCard />}
       {isAdmin && <EngineSettingsCard />}
 
       <h2>{t("auth.accountSection")}</h2>
