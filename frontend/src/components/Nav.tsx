@@ -16,6 +16,9 @@ export function Nav() {
       <NavLink to="/sites" className={({ isActive }) => (isActive ? "active" : "")}>
         Sites
       </NavLink>
+      <NavLink to="/error-pages" className={({ isActive }) => (isActive ? "active" : "")}>
+        Error Pages
+      </NavLink>
       <NavLink to="/settings" className={({ isActive }) => (isActive ? "active" : "")}>
         Settings
       </NavLink>

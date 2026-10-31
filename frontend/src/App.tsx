@@ -1,6 +1,7 @@
 import { Route, Routes } from "react-router-dom";
 import { Nav } from "./components/Nav";
 import { DashboardPage } from "./pages/DashboardPage";
+import { ErrorPagesPage } from "./pages/ErrorPagesPage";
 import { LogsPage } from "./pages/LogsPage";
 import { RulesPage } from "./pages/RulesPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -16,6 +17,7 @@ export function App() {
           <Route path="/logs" element={<LogsPage />} />
           <Route path="/rules" element={<RulesPage />} />
           <Route path="/sites" element={<SitesPage />} />
+          <Route path="/error-pages" element={<ErrorPagesPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </div>

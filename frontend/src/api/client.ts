@@ -65,6 +65,14 @@ export interface LogSink {
   created_at: string;
 }
 
+export interface ErrorPage {
+  status_code: number;
+  title: string;
+  html_content: string;
+  is_customized: boolean;
+  updated_at: string | null;
+}
+
 export interface RuleMatch {
   rule_id: string | null;
   message: string | null;
@@ -201,6 +209,16 @@ export const api = {
   toggleLogSink: (id: number, enabled: boolean) =>
     request<LogSink>(`/api/log-sinks/${id}`, { method: "PATCH", body: JSON.stringify({ enabled }) }),
   deleteLogSink: (id: number) => request<void>(`/api/log-sinks/${id}`, { method: "DELETE" }),
+
+  // Error pages
+  listErrorPages: () => request<ErrorPage[]>("/api/error-pages"),
+  updateErrorPage: (statusCode: number, html_content: string) =>
+    request<ErrorPage>(`/api/error-pages/${statusCode}`, {
+      method: "PUT",
+      body: JSON.stringify({ html_content }),
+    }),
+  resetErrorPage: (statusCode: number) =>
+    request<ErrorPage>(`/api/error-pages/${statusCode}/reset`, { method: "POST" }),
 
   // Logs & stats (unchanged)
   listLogs: (params: Record<string, string | number | boolean | undefined>) => {
