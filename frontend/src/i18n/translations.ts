@@ -121,6 +121,17 @@ export const translations: Record<Lang, Record<string, string>> = {
     "rules.setupFile": "· setup file",
     "rules.deleteFileConfirm": "Delete {filename}?",
 
+    "tuning.title": "CRS Tuning",
+    "tuning.description": "Adjusts crs-setup.conf directly - paranoia level and anomaly score thresholds control how aggressively CRS blocks traffic.",
+    "tuning.blockingParanoia": "Blocking paranoia level",
+    "tuning.detectionParanoia": "Detection paranoia level",
+    "tuning.detectionParanoiaHint": "Must be >= blocking paranoia level.",
+    "tuning.inboundThreshold": "Inbound anomaly score threshold",
+    "tuning.outboundThreshold": "Outbound anomaly score threshold",
+    "tuning.save": "Save tuning",
+    "tuning.saveSuccess": "Tuning saved.",
+    "tuning.saveError": "Failed to save: {error}",
+
     "sites.title": "Sites (Reverse Proxy)",
     "sites.description":
       "Each enabled site becomes an nginx server block on the waf-engine container, protected by whatever rule sets are active on the Rules page. HTTP only for now - see README for TLS.",
@@ -302,6 +313,17 @@ export const translations: Record<Lang, Record<string, string>> = {
     "rules.noParsedRules": "Tidak ada rule individual yang berhasil di-parse di file ini.",
     "rules.setupFile": "· file setup",
     "rules.deleteFileConfirm": "Hapus {filename}?",
+
+    "tuning.title": "Tuning CRS",
+    "tuning.description": "Langsung ngubah crs-setup.conf - paranoia level & anomaly score threshold ngatur seberapa agresif CRS nge-block traffic.",
+    "tuning.blockingParanoia": "Blocking paranoia level",
+    "tuning.detectionParanoia": "Detection paranoia level",
+    "tuning.detectionParanoiaHint": "Harus >= blocking paranoia level.",
+    "tuning.inboundThreshold": "Anomaly score threshold (inbound)",
+    "tuning.outboundThreshold": "Anomaly score threshold (outbound)",
+    "tuning.save": "Simpan tuning",
+    "tuning.saveSuccess": "Tuning tersimpan.",
+    "tuning.saveError": "Gagal nyimpen: {error}",
 
     "sites.title": "Sites (Reverse Proxy)",
     "sites.description":

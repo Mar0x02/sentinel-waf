@@ -44,6 +44,13 @@ export interface RuleRow {
   order_index: number;
 }
 
+export interface CrsTuning {
+  blocking_paranoia_level: number;
+  detection_paranoia_level: number;
+  inbound_anomaly_score_threshold: number;
+  outbound_anomaly_score_threshold: number;
+}
+
 export interface Site {
   id: number;
   name: string;
@@ -271,6 +278,12 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ enabled }),
     }),
+
+  // CRS tuning (paranoia level / anomaly thresholds) - only present if the
+  // rule set has a "setup" file (e.g. crs-setup.conf).
+  getTuning: (ruleSetId: number) => request<CrsTuning>(`/api/rule-sets/${ruleSetId}/tuning`),
+  updateTuning: (ruleSetId: number, tuning: CrsTuning) =>
+    request<CrsTuning>(`/api/rule-sets/${ruleSetId}/tuning`, { method: "PUT", body: JSON.stringify(tuning) }),
 
   // Sites (reverse proxy)
   listSites: () => request<Site[]>("/api/sites"),

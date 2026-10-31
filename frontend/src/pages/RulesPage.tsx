@@ -1,7 +1,98 @@
 import { useEffect, useState } from "react";
-import { api, CatalogEntry, RuleFile, RuleRow, RuleSet } from "../api/client";
+import { api, CatalogEntry, CrsTuning, RuleFile, RuleRow, RuleSet } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { useLanguage } from "../i18n/LanguageContext";
+
+function CrsTuningPanel({ ruleSetId }: { ruleSetId: number }) {
+  const { t } = useLanguage();
+  const { canWrite } = useAuth();
+  const [tuning, setTuning] = useState<CrsTuning | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.getTuning(ruleSetId).then(setTuning).catch(() => setTuning(null));
+  }, [ruleSetId]);
+
+  async function save() {
+    if (!tuning) return;
+    setStatus(null);
+    try {
+      const updated = await api.updateTuning(ruleSetId, tuning);
+      setTuning(updated);
+      setStatus(t("tuning.saveSuccess"));
+    } catch (e) {
+      setStatus(t("tuning.saveError", { error: String(e) }));
+    }
+  }
+
+  if (!tuning) return null;
+
+  return (
+    <div className="card">
+      <h3>{t("tuning.title")}</h3>
+      <p className="muted">{t("tuning.description")}</p>
+      {status && <p>{status}</p>}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, maxWidth: 480 }}>
+        <label>
+          {t("tuning.blockingParanoia")}
+          <select
+            value={tuning.blocking_paranoia_level}
+            onChange={(e) => setTuning({ ...tuning, blocking_paranoia_level: Number(e.target.value) })}
+            style={{ display: "block", marginTop: 4, width: "100%" }}
+            disabled={!canWrite}
+          >
+            {[1, 2, 3, 4].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          {t("tuning.detectionParanoia")}
+          <select
+            value={tuning.detection_paranoia_level}
+            onChange={(e) => setTuning({ ...tuning, detection_paranoia_level: Number(e.target.value) })}
+            style={{ display: "block", marginTop: 4, width: "100%" }}
+            disabled={!canWrite}
+          >
+            {[1, 2, 3, 4].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+          <span className="muted">{t("tuning.detectionParanoiaHint")}</span>
+        </label>
+        <label>
+          {t("tuning.inboundThreshold")}
+          <input
+            type="number"
+            value={tuning.inbound_anomaly_score_threshold}
+            onChange={(e) => setTuning({ ...tuning, inbound_anomaly_score_threshold: Number(e.target.value) })}
+            style={{ display: "block", marginTop: 4, width: "100%" }}
+            disabled={!canWrite}
+          />
+        </label>
+        <label>
+          {t("tuning.outboundThreshold")}
+          <input
+            type="number"
+            value={tuning.outbound_anomaly_score_threshold}
+            onChange={(e) => setTuning({ ...tuning, outbound_anomaly_score_threshold: Number(e.target.value) })}
+            style={{ display: "block", marginTop: 4, width: "100%" }}
+            disabled={!canWrite}
+          />
+        </label>
+      </div>
+      {canWrite && (
+        <button className="btn" style={{ marginTop: 12 }} onClick={save}>
+          {t("tuning.save")}
+        </button>
+      )}
+    </div>
+  );
+}
 
 function RuleFilesPanel({ ruleSet, onChanged }: { ruleSet: RuleSet; onChanged: () => void }) {
   const { t } = useLanguage();
@@ -46,8 +137,12 @@ function RuleFilesPanel({ ruleSet, onChanged }: { ruleSet: RuleSet; onChanged: (
     onChanged();
   }
 
+  const hasSetupFile = files.some((f) => f.file_kind === "setup");
+
   return (
-    <div className="card" style={{ marginTop: 8 }}>
+    <>
+      {hasSetupFile && <CrsTuningPanel ruleSetId={ruleSet.id} />}
+      <div className="card" style={{ marginTop: 8 }}>
       {error && <p>{error}</p>}
       {files
         .filter((f) => f.file_kind !== "asset")
@@ -64,7 +159,7 @@ function RuleFilesPanel({ ruleSet, onChanged }: { ruleSet: RuleSet; onChanged: (
               <button className="btn" onClick={() => openRules(f)}>
                 {t("rules.viewRules")}
               </button>
-              {isCustom && canWrite && (
+              {(isCustom || f.file_kind === "setup") && canWrite && (
                 <button className="btn" onClick={() => openEditor(f)}>
                   {t("common.edit")}
                 </button>
@@ -173,7 +268,8 @@ function RuleFilesPanel({ ruleSet, onChanged }: { ruleSet: RuleSet; onChanged: (
           </button>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 
