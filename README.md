@@ -100,9 +100,18 @@ plaintext di mana pun), kira-kira begini:
 
 Login pakai username `admin` + password itu di `http://localhost:5173`.
 Dashboard bakal langsung minta kamu ganti password itu ke password sendiri
-sebelum bisa lanjut pakai fitur lain. Lupa/ilang password-nya? Masuk ke
-database Postgres dan hapus baris di tabel `admins` lalu restart
-`backend` - akun admin baru bakal dibuat ulang otomatis.
+sebelum bisa lanjut pakai fitur lain.
+
+### Lupa password?
+
+```bash
+./reset-admin.sh
+```
+
+Password admin langsung di-generate ulang (random) dan ditampilkan sekali
+di terminal, mirip `./install.sh`. Semua sesi login yang lagi aktif juga
+otomatis ke-logout (jaga-jaga kalau reset-nya karena curiga ada yang akses
+tanpa izin). Login lagi pakai password baru itu, nanti diminta ganti lagi.
 
 ## Setup pertama kali
 
