@@ -133,16 +133,29 @@ class ErrorPage(Base):
     )
 
 
-class Admin(Base):
-    """Dashboard login account. Single-admin for now - see CLAUDE.md for
-    why (no multi-user table/roles yet, deliberately).
+class Role(str, enum.Enum):
+    # admin: everything, including managing other users.
+    # operator: day-to-day WAF ops (rules/sites/error pages) but not user
+    #   management or log-sink settings.
+    # viewer: read-only everywhere (dashboard/logs/stats/rules/sites), no
+    #   write endpoint of any kind - enforced per-endpoint, see CLAUDE.md.
+    admin = "admin"
+    operator = "operator"
+    viewer = "viewer"
+
+
+class User(Base):
+    """A dashboard login account. See CLAUDE.md for the role model and how
+    it's enforced (per-endpoint dependencies, not router-wide, since most
+    routers mix read and write endpoints that need different checks).
     """
 
-    __tablename__ = "admins"
+    __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     username: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    role: Mapped[Role] = mapped_column(Enum(Role), default=Role.admin, nullable=False)
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

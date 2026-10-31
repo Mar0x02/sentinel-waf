@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.auth import require_admin_role
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.models import LogSink
@@ -17,7 +18,10 @@ def list_log_sinks(db: Session = Depends(get_db)):
 
 @router.post("", response_model=LogSinkOut, status_code=201)
 def create_log_sink(
-    payload: LogSinkCreate, db: Session = Depends(get_db), settings: Settings = Depends(get_settings)
+    payload: LogSinkCreate,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    _=Depends(require_admin_role),
 ):
     sink = LogSink(**payload.model_dump())
     db.add(sink)
@@ -32,6 +36,7 @@ def update_log_sink(
     payload: LogSinkUpdate,
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
+    _=Depends(require_admin_role),
 ):
     sink = db.get(LogSink, sink_id)
     if sink is None:
@@ -49,6 +54,7 @@ def toggle_log_sink(
     payload: EnabledPatch,
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
+    _=Depends(require_admin_role),
 ):
     sink = db.get(LogSink, sink_id)
     if sink is None:
@@ -60,7 +66,12 @@ def toggle_log_sink(
 
 
 @router.delete("/{sink_id}", status_code=204)
-def delete_log_sink(sink_id: int, db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+def delete_log_sink(
+    sink_id: int,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    _=Depends(require_admin_role),
+):
     sink = db.get(LogSink, sink_id)
     if sink is None:
         raise HTTPException(404, "Log sink not found")

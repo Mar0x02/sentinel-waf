@@ -7,7 +7,7 @@ from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import Admin, AppSecret
+from app.models import AppSecret, Role, User
 
 JWT_SECRET_KEY_NAME = "jwt_secret"
 JWT_ALGORITHM = "HS256"
@@ -32,25 +32,42 @@ def get_or_create_jwt_secret(db: Session) -> str:
     return row.value
 
 
-def create_access_token(admin_id: int, secret: str) -> str:
-    payload = {"sub": str(admin_id), "exp": datetime.now(timezone.utc) + TOKEN_TTL}
+def create_access_token(user_id: int, secret: str) -> str:
+    payload = {"sub": str(user_id), "exp": datetime.now(timezone.utc) + TOKEN_TTL}
     return jwt.encode(payload, secret, algorithm=JWT_ALGORITHM)
 
 
-def ensure_admin_seeded(db: Session) -> None:
-    """Creates the one admin account on first boot with a random password,
-    printed to the container logs - there is no other way to retrieve it
-    (it's never stored in plaintext). Does nothing on later boots.
+def rotate_jwt_secret(db: Session) -> None:
+    """Invalidates every outstanding session token immediately by replacing
+    the signing key - used by the reset-password CLI so a reset (e.g.
+    because a password may have leaked) also kicks out anyone already
+    logged in, not just the account owner.
     """
-    if db.query(Admin).first() is not None:
+    row = db.get(AppSecret, JWT_SECRET_KEY_NAME)
+    if row is None:
+        row = AppSecret(key=JWT_SECRET_KEY_NAME, value=secrets.token_hex(32))
+        db.add(row)
+    else:
+        row.value = secrets.token_hex(32)
+    db.commit()
+
+
+def ensure_admin_seeded(db: Session) -> None:
+    """Creates the first user (role=admin) on first boot with a random
+    password, printed to the container logs - there is no other way to
+    retrieve it (it's never stored in plaintext). Does nothing once any
+    user exists, including ones created later via the Team page.
+    """
+    if db.query(User).first() is not None:
         return
     password = secrets.token_urlsafe(16)
-    admin = Admin(
+    user = User(
         username=DEFAULT_ADMIN_USERNAME,
         password_hash=hash_password(password),
+        role=Role.admin,
         must_change_password=True,
     )
-    db.add(admin)
+    db.add(user)
     db.commit()
     print(
         "\n"
@@ -65,42 +82,27 @@ def ensure_admin_seeded(db: Session) -> None:
     )
 
 
-def rotate_jwt_secret(db: Session) -> None:
-    """Invalidates every outstanding session token immediately by replacing
-    the signing key - used by the reset-admin CLI so a password reset
-    (e.g. because the password may have leaked) also kicks out anyone
-    already logged in, not just the account owner.
+def reset_user_password(db: Session, username: str) -> str | None:
+    """Generates a new random password for the given username and forces a
+    change on next login. Returns the new password, or None if that
+    username doesn't exist. Also rotates the JWT secret, signing out every
+    active session - see rotate_jwt_secret().
     """
-    row = db.get(AppSecret, JWT_SECRET_KEY_NAME)
-    if row is None:
-        row = AppSecret(key=JWT_SECRET_KEY_NAME, value=secrets.token_hex(32))
-        db.add(row)
-    else:
-        row.value = secrets.token_hex(32)
-    db.commit()
-
-
-def reset_admin_password(db: Session) -> tuple[str, str] | None:
-    """Generates a new random password for the (single) admin account and
-    forces a change on next login. Returns (username, new_password), or
-    None if no admin account exists yet (nothing to reset - one gets
-    created normally on the backend's next startup).
-    """
-    admin = db.query(Admin).first()
-    if admin is None:
+    user = db.query(User).filter(User.username == username).first()
+    if user is None:
         return None
     new_password = secrets.token_urlsafe(16)
-    admin.password_hash = hash_password(new_password)
-    admin.must_change_password = True
+    user.password_hash = hash_password(new_password)
+    user.must_change_password = True
     db.commit()
     rotate_jwt_secret(db)
-    return admin.username, new_password
+    return new_password
 
 
-def get_current_admin(
+def get_current_user(
     authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
-) -> Admin:
+) -> User:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(401, "Not authenticated")
     token = authorization.removeprefix("Bearer ").strip()
@@ -109,7 +111,27 @@ def get_current_admin(
         payload = jwt.decode(token, secret, algorithms=[JWT_ALGORITHM])
     except jwt.PyJWTError:
         raise HTTPException(401, "Invalid or expired session")
-    admin = db.get(Admin, int(payload["sub"]))
-    if admin is None:
+    user = db.get(User, int(payload["sub"]))
+    if user is None:
         raise HTTPException(401, "Invalid or expired session")
-    return admin
+    return user
+
+
+def require_role(*roles: Role):
+    """Dependency factory: raises 403 unless the current user's role is one
+    of `roles`. Applied per-endpoint (not per-router) wherever a write
+    needs a higher bar than "logged in" - see CLAUDE.md for why routers
+    can't just do this once at include_router() time like the plain
+    logged-in check does.
+    """
+
+    def checker(user: User = Depends(get_current_user)) -> User:
+        if user.role not in roles:
+            raise HTTPException(403, "You don't have permission to do this")
+        return user
+
+    return checker
+
+
+require_write_access = require_role(Role.admin, Role.operator)
+require_admin_role = require_role(Role.admin)

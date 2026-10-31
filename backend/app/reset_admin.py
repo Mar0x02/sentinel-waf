@@ -1,33 +1,36 @@
-"""Run inside the backend container to reset the admin password - the
+"""Run inside the backend container to reset a user's password - the
 equivalent of SafeLine's `docker exec safeline-mgt resetadmin`:
 
-    docker compose exec backend python -m app.reset_admin
+    docker compose exec backend python -m app.reset_admin [username]
 
-Prints the new password once, directly to this terminal (unlike the
-initial-boot password, no waiting is needed here - `docker compose exec`
-is synchronous, so there's no install.sh-style polling required).
+Defaults to "admin" if no username is given. Prints the new password once,
+directly to this terminal (unlike the initial-boot password, no waiting is
+needed here - `docker compose exec` is synchronous).
 """
 
-from app.auth import reset_admin_password
+import sys
+
+from app.auth import DEFAULT_ADMIN_USERNAME, reset_user_password
 from app.db import SessionLocal
 
 
 def main() -> None:
+    username = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_ADMIN_USERNAME
+
     db = SessionLocal()
     try:
-        result = reset_admin_password(db)
+        new_password = reset_user_password(db, username)
     finally:
         db.close()
 
-    if result is None:
-        print("No admin account exists yet - one will be created automatically on the backend's next startup.")
+    if new_password is None:
+        print(f"No user named '{username}' exists. List known usernames from the dashboard's Team page.")
         return
 
-    username, new_password = result
     print(
         "\n"
         "==================================================================\n"
-        "  Sentinel WAF - admin password reset\n"
+        "  Sentinel WAF - password reset\n"
         f"  username: {username}\n"
         f"  password: {new_password}\n"
         "  This password is shown ONLY this one time - it is not stored in\n"

@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field
 
+from app.models import Role
+
 
 class LoginRequest(BaseModel):
     username: str
@@ -9,6 +11,7 @@ class LoginRequest(BaseModel):
 class LoginResponse(BaseModel):
     access_token: str
     must_change_password: bool
+    role: Role
 
 
 class ChangePasswordRequest(BaseModel):
@@ -18,4 +21,5 @@ class ChangePasswordRequest(BaseModel):
 
 class MeResponse(BaseModel):
     username: str
+    role: Role
     must_change_password: bool

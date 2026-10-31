@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.auth import require_write_access
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.models import Site
@@ -16,7 +17,12 @@ def list_sites(db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=SiteOut, status_code=201)
-def create_site(payload: SiteCreate, db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+def create_site(
+    payload: SiteCreate,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    _=Depends(require_write_access),
+):
     site = Site(**payload.model_dump())
     db.add(site)
     db.commit()
@@ -30,6 +36,7 @@ def update_site(
     payload: SiteUpdate,
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
+    _=Depends(require_write_access),
 ):
     site = db.get(Site, site_id)
     if site is None:
@@ -47,6 +54,7 @@ def toggle_site(
     payload: EnabledPatch,
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
+    _=Depends(require_write_access),
 ):
     site = db.get(Site, site_id)
     if site is None:
@@ -58,7 +66,12 @@ def toggle_site(
 
 
 @router.delete("/{site_id}", status_code=204)
-def delete_site(site_id: int, db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+def delete_site(
+    site_id: int,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    _=Depends(require_write_access),
+):
     site = db.get(Site, site_id)
     if site is None:
         raise HTTPException(404, "Site not found")

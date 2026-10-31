@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.auth import require_write_access
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.default_error_pages import DEFAULT_ERROR_PAGES, ERROR_PAGE_TITLES
@@ -41,6 +42,7 @@ def update_error_page(
     payload: ErrorPageUpdate,
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
+    _=Depends(require_write_access),
 ):
     if status_code not in DEFAULT_ERROR_PAGES:
         raise HTTPException(404, f"Status code {status_code} isn't supported")
@@ -60,6 +62,7 @@ def reset_error_page(
     status_code: int,
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
+    _=Depends(require_write_access),
 ):
     if status_code not in DEFAULT_ERROR_PAGES:
         raise HTTPException(404, f"Status code {status_code} isn't supported")

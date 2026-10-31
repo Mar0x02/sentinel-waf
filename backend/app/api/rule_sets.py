@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.auth import require_write_access
 from app.catalog import CRS_CATALOG, CatalogEntry, get_catalog_entry
 from app.config import Settings, get_settings
 from app.db import get_db
@@ -81,6 +82,7 @@ def import_catalog(
     payload: ImportFromCatalogRequest,
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
+    _=Depends(require_write_access),
 ):
     entry = get_catalog_entry(payload.catalog_id)
     if entry is None:
@@ -98,6 +100,7 @@ def import_url(
     payload: ImportFromUrlRequest,
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
+    _=Depends(require_write_access),
 ):
     try:
         rule_set = importer.import_from_url(db, name=payload.name, url=payload.url, version=payload.version)
@@ -113,6 +116,7 @@ def toggle_rule_set(
     payload: EnabledPatch,
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
+    _=Depends(require_write_access),
 ):
     rule_set = db.get(RuleSet, rule_set_id)
     if rule_set is None:
@@ -128,6 +132,7 @@ def delete_rule_set(
     rule_set_id: int,
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
+    _=Depends(require_write_access),
 ):
     rule_set = db.get(RuleSet, rule_set_id)
     if rule_set is None:
@@ -152,6 +157,7 @@ def create_rule_file(
     payload: CustomRuleFileCreate,
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
+    _=Depends(require_write_access),
 ):
     try:
         rule_file = importer.create_custom_rule_file(db, filename=payload.filename, content=payload.content)
@@ -175,6 +181,7 @@ def update_rule_file(
     payload: CustomRuleFileUpdate,
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
+    _=Depends(require_write_access),
 ):
     rule_file = db.get(RuleFile, rule_file_id)
     if rule_file is None:
@@ -196,6 +203,7 @@ def toggle_rule_file(
     payload: EnabledPatch,
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
+    _=Depends(require_write_access),
 ):
     rule_file = db.get(RuleFile, rule_file_id)
     if rule_file is None:
@@ -211,6 +219,7 @@ def delete_rule_file(
     rule_file_id: int,
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
+    _=Depends(require_write_access),
 ):
     rule_file = db.get(RuleFile, rule_file_id)
     if rule_file is None:
@@ -248,6 +257,7 @@ def toggle_rule(
     payload: EnabledPatch,
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
+    _=Depends(require_write_access),
 ):
     rule = db.get(Rule, rule_id)
     if rule is None:
