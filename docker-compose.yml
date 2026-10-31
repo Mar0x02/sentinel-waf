@@ -23,6 +23,7 @@ services:
       WAF_RULES_RENDER_DIR: /render/modsecurity-rules
       WAF_SITES_RENDER_DIR: /render/nginx-sites
       WAF_LOG_SINK_CONFIG_PATH: /render/log-sinks/log-sinks.json
+      WAF_DISCORD_WEBHOOK_CONFIG_PATH: /render/discord/webhooks.json
       WAF_ERROR_PAGES_RENDER_DIR: /render/error-pages
       WAF_ENGINE_SETTINGS_RENDER_DIR: /render/engine-settings
       WAF_AUDIT_LOG_DIR: /data/logs
@@ -31,6 +32,7 @@ services:
       - rules-render:/render/modsecurity-rules
       - sites-render:/render/nginx-sites
       - log-sink-config:/render/log-sinks
+      - discord-config:/render/discord
       - error-pages-render:/render/error-pages
       - engine-settings-render:/render/engine-settings
       - audit-logs:/data/logs:ro
@@ -72,6 +74,7 @@ services:
     volumes:
       - audit-logs:/data/logs:ro
       - log-sink-config:/render/log-sinks:ro
+      - discord-config:/render/discord:ro
       - log-forwarder-state:/state
 
 volumes:
@@ -79,6 +82,7 @@ volumes:
   rules-render:
   sites-render:
   log-sink-config:
+  discord-config:
   error-pages-render:
   engine-settings-render:
   audit-logs:
