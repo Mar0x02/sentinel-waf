@@ -32,6 +32,9 @@ auditable dan gampang di-manage dari satu tempat.
 - **Log forwarding** - audit log ModSecurity bisa diarahkan ke syslog
   server eksternal (SIEM, dst), selain tetap bisa dilihat langsung di
   dashboard (trend serangan, top rule yang ke-trigger, top IP penyerang).
+  Tiap baris log di tab **Logs** bisa diklik buat liat detail lengkap:
+  host tujuan, User-Agent pengirim, dan semua rule yang cocok beserta
+  pesan/severity/tags/data-nya - gak cuma daftar rule ID doang.
 - **Notifikasi Discord** - tiap request yang diblokir WAF langsung kekirim
   ke channel Discord (di-batch biar gak kena rate-limit webhook Discord
   pas lagi diserang rame). Atur dari tab Settings, khusus Admin. Cara

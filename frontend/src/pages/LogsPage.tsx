@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { api, AuditLogEntry } from "../api/client";
 import { useLanguage } from "../i18n/LanguageContext";
 
@@ -11,6 +11,7 @@ export function LogsPage() {
   const [clientIp, setClientIp] = useState("");
   const [blockedOnly, setBlockedOnly] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const limit = 25;
 
   useEffect(() => {
@@ -58,12 +59,17 @@ export function LogsPage() {
 
       {error && <p>{t("logs.loadError", { error })}</p>}
 
+      <p className="muted" style={{ fontSize: 12 }}>
+        {t("logs.detailHint")}
+      </p>
+
       <div className="card">
         <table>
           <thead>
             <tr>
               <th>{t("logs.timestamp")}</th>
               <th>{t("logs.clientIp")}</th>
+              <th>{t("logs.host")}</th>
               <th>{t("logs.method")}</th>
               <th>{t("logs.uri")}</th>
               <th>{t("logs.status")}</th>
@@ -71,29 +77,81 @@ export function LogsPage() {
             </tr>
           </thead>
           <tbody>
-            {items.map((entry) => (
-              <tr key={entry.transaction_id}>
-                <td>{entry.timestamp ?? "-"}</td>
-                <td>{entry.client_ip ?? "-"}</td>
-                <td>{entry.method ?? "-"}</td>
-                <td style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {entry.uri ?? "-"}
-                </td>
-                <td>
-                  <span className={`pill ${entry.blocked ? "blocked" : "ok"}`}>
-                    {entry.blocked ? t("logs.blockedPill") : entry.status_code ?? "-"}
-                  </span>
-                </td>
-                <td>
-                  {entry.matches.length === 0
-                    ? "-"
-                    : entry.matches.map((m) => m.rule_id).join(", ")}
-                </td>
-              </tr>
-            ))}
+            {items.map((entry) => {
+              const isExpanded = expandedId === entry.transaction_id;
+              return (
+                <Fragment key={entry.transaction_id}>
+                  <tr
+                    onClick={() => setExpandedId(isExpanded ? null : entry.transaction_id)}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <td>{entry.timestamp ?? "-"}</td>
+                    <td>{entry.client_ip ?? "-"}</td>
+                    <td>{entry.host ?? "-"}</td>
+                    <td>{entry.method ?? "-"}</td>
+                    <td style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {entry.uri ?? "-"}
+                    </td>
+                    <td>
+                      <span className={`pill ${entry.blocked ? "blocked" : "ok"}`}>
+                        {entry.blocked ? t("logs.blockedPill") : entry.status_code ?? "-"}
+                      </span>
+                    </td>
+                    <td>
+                      {entry.matches.length === 0
+                        ? "-"
+                        : entry.matches.map((m) => m.rule_id).join(", ")}
+                    </td>
+                  </tr>
+                  {isExpanded && (
+                    <tr>
+                      <td colSpan={7} style={{ background: "var(--bg-subtle, #f6f7f9)" }}>
+                        <div style={{ padding: "8px 4px", fontSize: 13 }}>
+                          <div>
+                            <strong>{t("logs.transactionId")}:</strong> {entry.transaction_id}
+                          </div>
+                          <div>
+                            <strong>{t("logs.userAgent")}:</strong> {entry.user_agent ?? "-"}
+                          </div>
+                          {entry.matches.length === 0 ? (
+                            <p className="muted">{t("logs.noMatches")}</p>
+                          ) : (
+                            <table style={{ marginTop: 8 }}>
+                              <thead>
+                                <tr>
+                                  <th>{t("logs.matchedRules")}</th>
+                                  <th>{t("logs.matchSeverity")}</th>
+                                  <th>{t("logs.matchTags")}</th>
+                                  <th>{t("logs.matchData")}</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {entry.matches.map((m, idx) => (
+                                  <tr key={`${entry.transaction_id}-match-${idx}`}>
+                                    <td>
+                                      {m.rule_id ?? "-"}
+                                      {m.message ? ` - ${m.message}` : ""}
+                                    </td>
+                                    <td>{m.severity ?? "-"}</td>
+                                    <td>{m.tags.join(", ") || "-"}</td>
+                                    <td style={{ maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis" }}>
+                                      {m.data ?? "-"}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
             {items.length === 0 && (
               <tr>
-                <td colSpan={6} className="muted">
+                <td colSpan={7} className="muted">
                   {t("logs.noEntries")}
                 </td>
               </tr>

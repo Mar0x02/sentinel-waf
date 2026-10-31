@@ -15,6 +15,8 @@ class AuditLogEntry(BaseModel):
     transaction_id: str
     timestamp: datetime | None = None
     client_ip: str | None = None
+    host: str | None = None
+    user_agent: str | None = None
     method: str | None = None
     uri: str | None = None
     status_code: int | None = None

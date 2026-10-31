@@ -107,6 +107,8 @@ export interface AuditLogEntry {
   transaction_id: string;
   timestamp: string | null;
   client_ip: string | null;
+  host: string | null;
+  user_agent: string | null;
   method: string | null;
   uri: string | null;
   status_code: number | null;

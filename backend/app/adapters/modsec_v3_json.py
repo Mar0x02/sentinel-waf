@@ -73,6 +73,9 @@ class ModSecV3JsonParser(AuditLogParser):
         request = tx.get("request") or {}
         response = tx.get("response") or {}
         status_code = response.get("http_code")
+        headers = request.get("headers") or {}
+        user_agent = self._header(headers, "user-agent")
+        host = request.get("hostname") or self._header(headers, "host")
 
         matches = [
             match
@@ -88,12 +91,24 @@ class ModSecV3JsonParser(AuditLogParser):
             transaction_id=transaction_id,
             timestamp=timestamp,
             client_ip=tx.get("client_ip"),
+            host=host,
+            user_agent=user_agent,
             method=request.get("method"),
             uri=request.get("uri"),
             status_code=status_code,
             blocked=blocked,
             matches=matches,
         )
+
+    @staticmethod
+    def _header(headers: dict, name: str) -> str | None:
+        # Header key casing isn't guaranteed (clients send "User-Agent",
+        # "user-agent", etc.) - match case-insensitively.
+        name = name.lower()
+        for key, value in headers.items():
+            if isinstance(key, str) and key.lower() == name:
+                return value
+        return None
 
     @staticmethod
     def _to_match(raw: dict) -> RuleMatch | None:
