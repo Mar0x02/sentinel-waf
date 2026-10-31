@@ -32,6 +32,10 @@ auditable dan gampang di-manage dari satu tempat.
 - **Login & bahasa** - dashboard terkunci di belakang login admin (password
   awal di-generate otomatis, lihat bagian Login di bawah), dan tersedia
   dalam Bahasa Indonesia atau English (tinggal toggle).
+- **Team & role** - tambah anggota tim dengan 3 level akses: **Admin**
+  (full akses + kelola user lain), **Operator** (kelola rule/site/error
+  page sehari-hari), **Viewer** (read-only). Dikelola dari tab **Team**
+  (cuma keliatan buat Admin).
 
 ## Arsitektur
 
@@ -102,16 +106,38 @@ Login pakai username `admin` + password itu di `http://localhost:5173`.
 Dashboard bakal langsung minta kamu ganti password itu ke password sendiri
 sebelum bisa lanjut pakai fitur lain.
 
+Akun pertama ini otomatis role **Admin**. Buat nambah anggota tim lain
+(dengan role Operator atau Viewer), lihat bagian **Team** di bawah.
+
 ### Lupa password?
 
 ```bash
-./reset-admin.sh
+./reset-admin.sh            # reset akun "admin"
+./reset-admin.sh namauser   # reset akun user lain (berlaku buat role apa aja)
 ```
 
-Password admin langsung di-generate ulang (random) dan ditampilkan sekali
-di terminal, mirip `./install.sh`. Semua sesi login yang lagi aktif juga
-otomatis ke-logout (jaga-jaga kalau reset-nya karena curiga ada yang akses
-tanpa izin). Login lagi pakai password baru itu, nanti diminta ganti lagi.
+Password langsung di-generate ulang (random) dan ditampilkan sekali di
+terminal, mirip `./install.sh`. **Semua sesi login yang lagi aktif - buat
+semua user, bukan cuma yang di-reset - otomatis ke-logout** (jaga-jaga
+kalau reset-nya karena curiga ada yang akses tanpa izin). Login lagi pakai
+password baru itu, nanti diminta ganti lagi.
+
+## Team (kelola anggota & role)
+
+Tab **Team** (cuma keliatan buat user dengan role Admin) buat nambah,
+hapus, atau ubah role anggota tim:
+
+- **Admin** - full akses, termasuk kelola user lain dan log forwarding.
+- **Operator** - kelola Rules/Sites/Error Pages sehari-hari, **tidak**
+  bisa kelola user atau pengaturan log forwarding.
+- **Viewer** - read-only di semua halaman (Dashboard, Logs, Rules, Sites,
+  dst), gak bisa ubah apa-apa.
+
+Pas nambah user baru, Admin yang set password awalnya langsung (gak ada
+invite link via email) - user itu wajib ganti password sendiri pas login
+pertama. Admin juga bisa reset password teammate kapan aja dari tab ini
+(tombol **Reset password**) - sama efeknya kayak `./reset-admin.sh`, semua
+sesi login ke-logout.
 
 ## Setup pertama kali
 
