@@ -1,8 +1,11 @@
 import io
+import ipaddress
 import re
+import socket
 import tarfile
 import zipfile
 from pathlib import PurePosixPath
+from urllib.parse import urlparse
 
 import httpx
 from sqlalchemy import func
@@ -16,6 +19,56 @@ CUSTOM_RULE_SET_SLUG = "custom"
 
 class ImportError_(Exception):
     pass
+
+
+# RFC 6052 NAT64 "Well-Known Prefix" - Docker Desktop's resolver can
+# synthesize one of these for a plain IPv4-only hostname (observed for
+# github.com in testing: alongside the real A record, getaddrinfo also
+# returned 64:ff9b::14cd:f3a6, which embeds 20.205.243.166 - the exact
+# same address - in its low 32 bits). It's a legitimate translation
+# mechanism, not attacker-controlled, so the embedded IPv4 is checked
+# instead of rejecting the synthesized wrapper outright.
+_NAT64_WKP = ipaddress.ip_network("64:ff9b::/96")
+
+
+def _effective_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> ipaddress.IPv4Address | ipaddress.IPv6Address:
+    if isinstance(ip, ipaddress.IPv6Address) and ip in _NAT64_WKP:
+        return ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
+    return ip
+
+
+def _is_blocked_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    ip = _effective_ip(ip)
+    return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified
+
+
+def _reject_private_target(url: str) -> None:
+    """SSRF guard for "import rule set from URL": this endpoint makes the
+    *backend* fetch an admin/operator-supplied URL server-side, which
+    would otherwise let that role reach internal-only services - e.g.
+    http://postgres:5432, http://backend:8000, or (same bug class as any
+    cloud box) http://169.254.169.254/ for instance metadata. Docker
+    Compose service names resolve to addresses in the compose network's
+    private range, so resolving the hostname and rejecting any private/
+    loopback/link-local/reserved result catches both "obviously internal
+    hostname" and "DNS rebinding to an internal IP" in one check.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise ImportError_("url must be a valid http:// or https:// URL")
+
+    try:
+        addrinfo = socket.getaddrinfo(parsed.hostname, None)
+    except socket.gaierror as e:
+        raise ImportError_(f"Could not resolve host '{parsed.hostname}': {e}") from e
+
+    for *_rest, sockaddr in addrinfo:
+        ip = ipaddress.ip_address(sockaddr[0])
+        if _is_blocked_ip(ip):
+            raise ImportError_(
+                f"'{parsed.hostname}' resolves to a private/internal address ({ip}) - "
+                "only public URLs can be imported"
+            )
 
 
 def _slugify(text: str) -> str:
@@ -90,14 +143,40 @@ def _extract_members(raw: bytes) -> list[tuple[str, bytes]]:
     return list(members.items())
 
 
+def _fetch_public_url(url: str, *, max_redirects: int = 5) -> bytes:
+    """GETs `url`, validating every hop (not just the first) against
+    _reject_private_target - a redirect is exactly how an SSRF guard that
+    only checks the original URL gets bypassed (pass a public URL that
+    302s to an internal one). CRS's own GitHub release assets genuinely
+    redirect through objects.githubusercontent.com, so redirects can't
+    just be disabled - they have to be followed one at a time and
+    re-validated.
+    """
+    current = url
+    for _ in range(max_redirects + 1):
+        _reject_private_target(current)
+        try:
+            resp = httpx.get(current, follow_redirects=False, timeout=30.0)
+        except httpx.HTTPError as e:
+            raise ImportError_(f"Failed to download '{current}': {e}") from e
+        if resp.is_redirect:
+            location = resp.headers.get("location")
+            if not location:
+                raise ImportError_(f"'{current}' redirected without a Location header")
+            current = str(httpx.URL(current).join(location))
+            continue
+        resp.raise_for_status()
+        return resp.content
+    raise ImportError_("Too many redirects")
+
+
 def import_from_url(db: Session, *, name: str, url: str, version: str | None = None) -> RuleSet:
     try:
-        resp = httpx.get(url, follow_redirects=True, timeout=30.0)
-        resp.raise_for_status()
+        content = _fetch_public_url(url)
     except httpx.HTTPError as e:
         raise ImportError_(f"Failed to download '{url}': {e}") from e
 
-    members = _extract_members(resp.content)
+    members = _extract_members(content)
     if not members:
         raise ImportError_("No .conf/.data rule files found at that URL")
 
