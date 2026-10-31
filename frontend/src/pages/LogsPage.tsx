@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { api, AuditLogEntry } from "../api/client";
+import { useLanguage } from "../i18n/LanguageContext";
 
 export function LogsPage() {
+  const { t } = useLanguage();
   const [items, setItems] = useState<AuditLogEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -23,10 +25,10 @@ export function LogsPage() {
 
   return (
     <div>
-      <h2>Audit Logs</h2>
+      <h2>{t("logs.title")}</h2>
       <div className="filters-row">
         <input
-          placeholder="Filter by rule ID"
+          placeholder={t("logs.filterRuleId")}
           value={ruleId}
           onChange={(e) => {
             setOffset(0);
@@ -34,7 +36,7 @@ export function LogsPage() {
           }}
         />
         <input
-          placeholder="Filter by client IP"
+          placeholder={t("logs.filterClientIp")}
           value={clientIp}
           onChange={(e) => {
             setOffset(0);
@@ -50,22 +52,22 @@ export function LogsPage() {
               setBlockedOnly(e.target.checked);
             }}
           />
-          Blocked only
+          {t("logs.blockedOnly")}
         </label>
       </div>
 
-      {error && <p>Gagal memuat log: {error}</p>}
+      {error && <p>{t("logs.loadError", { error })}</p>}
 
       <div className="card">
         <table>
           <thead>
             <tr>
-              <th>Timestamp</th>
-              <th>Client IP</th>
-              <th>Method</th>
-              <th>URI</th>
-              <th>Status</th>
-              <th>Matched rules</th>
+              <th>{t("logs.timestamp")}</th>
+              <th>{t("logs.clientIp")}</th>
+              <th>{t("logs.method")}</th>
+              <th>{t("logs.uri")}</th>
+              <th>{t("logs.status")}</th>
+              <th>{t("logs.matchedRules")}</th>
             </tr>
           </thead>
           <tbody>
@@ -79,7 +81,7 @@ export function LogsPage() {
                 </td>
                 <td>
                   <span className={`pill ${entry.blocked ? "blocked" : "ok"}`}>
-                    {entry.blocked ? "Blocked" : entry.status_code ?? "-"}
+                    {entry.blocked ? t("logs.blockedPill") : entry.status_code ?? "-"}
                   </span>
                 </td>
                 <td>
@@ -92,7 +94,7 @@ export function LogsPage() {
             {items.length === 0 && (
               <tr>
                 <td colSpan={6} className="muted">
-                  Tidak ada entry.
+                  {t("logs.noEntries")}
                 </td>
               </tr>
             )}
@@ -102,13 +104,13 @@ export function LogsPage() {
 
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <button className="btn" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - limit))}>
-          Prev
+          {t("logs.prev")}
         </button>
         <span className="muted">
-          {offset + 1}-{Math.min(offset + limit, total)} of {total}
+          {t("logs.range", { from: offset + 1, to: Math.min(offset + limit, total), total })}
         </span>
         <button className="btn" disabled={offset + limit >= total} onClick={() => setOffset(offset + limit)}>
-          Next
+          {t("logs.next")}
         </button>
       </div>
     </div>

@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
 import type { TrendPoint } from "../api/client";
+import { useLanguage } from "../i18n/LanguageContext";
 
 const WIDTH = 760;
 const HEIGHT = 220;
 const PAD = { top: 16, right: 16, bottom: 28, left: 36 };
 
 export function TrendChart({ data }: { data: TrendPoint[] }) {
+  const { t } = useLanguage();
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
   const plot = useMemo(() => {
@@ -27,7 +29,7 @@ export function TrendChart({ data }: { data: TrendPoint[] }) {
   }, [data]);
 
   if (!plot || data.length === 0) {
-    return <p className="muted">Belum ada data trend (audit log kosong).</p>;
+    return <p className="muted">{t("trend.noData")}</p>;
   }
 
   const hovered = hoverIdx !== null ? data[hoverIdx] : null;
@@ -37,18 +39,18 @@ export function TrendChart({ data }: { data: TrendPoint[] }) {
       <div className="legend">
         <span className="legend-item">
           <span className="legend-swatch" style={{ background: "var(--series-1)" }} />
-          Total requests
+          {t("trend.totalRequests")}
         </span>
         <span className="legend-item">
           <span className="legend-swatch" style={{ background: "var(--series-2)" }} />
-          Blocked
+          {t("trend.blocked")}
         </span>
       </div>
       <svg
         width="100%"
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         role="img"
-        aria-label="Attack trend over time"
+        aria-label={t("trend.ariaLabel")}
         onMouseMove={(e) => {
           const rect = e.currentTarget.getBoundingClientRect();
           const px = ((e.clientX - rect.left) / rect.width) * WIDTH;
@@ -103,10 +105,10 @@ export function TrendChart({ data }: { data: TrendPoint[] }) {
             {hovered.bucket}
           </div>
           <div>
-            <strong>{hovered.total}</strong> total
+            <strong>{hovered.total}</strong> {t("trend.total")}
           </div>
           <div>
-            <strong>{hovered.blocked}</strong> blocked
+            <strong>{hovered.blocked}</strong> {t("trend.blockedWord")}
           </div>
         </div>
       )}

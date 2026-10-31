@@ -44,6 +44,8 @@ a {
   background: var(--surface-1);
   border-right: 1px solid var(--border);
   padding: 20px 12px;
+  display: flex;
+  flex-direction: column;
 }
 
 .nav h1 {
@@ -65,6 +67,31 @@ a {
 .nav a:hover {
   background: var(--page-plane);
   color: var(--text-primary);
+}
+
+.lang-switch {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 4px;
+}
+
+.lang-switch button {
+  flex: 1;
+  padding: 6px 0;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.lang-switch button.active {
+  background: var(--series-1);
+  color: #fff;
+  border-color: var(--series-1);
 }
 
 .main {

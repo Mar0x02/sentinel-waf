@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { api, Site } from "../api/client";
+import { useLanguage } from "../i18n/LanguageContext";
 
 const emptyForm = { name: "", domain: "", upstream_url: "", listen_port: 8080 };
 
 export function SitesPage() {
+  const { t } = useLanguage();
   const [sites, setSites] = useState<Site[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -42,11 +44,8 @@ export function SitesPage() {
 
   return (
     <div>
-      <h2>Sites (Reverse Proxy)</h2>
-      <p className="muted">
-        Each enabled site becomes an nginx server block on the waf-engine container, protected by whatever rule
-        sets are active on the Rules page. HTTP only for now - see README for TLS.
-      </p>
+      <h2>{t("sites.title")}</h2>
+      <p className="muted">{t("sites.description")}</p>
 
       {error && <p>{error}</p>}
 
@@ -54,10 +53,10 @@ export function SitesPage() {
         <table>
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Domain</th>
-              <th>Upstream</th>
-              <th>Port</th>
+              <th>{t("sites.name")}</th>
+              <th>{t("sites.domain")}</th>
+              <th>{t("sites.upstream")}</th>
+              <th>{t("sites.port")}</th>
               <th></th>
             </tr>
           </thead>
@@ -70,18 +69,18 @@ export function SitesPage() {
                 <td>{s.listen_port}</td>
                 <td style={{ display: "flex", gap: 8 }}>
                   <button className="btn" onClick={() => startEdit(s)}>
-                    Edit
+                    {t("common.edit")}
                   </button>
                   <button className="btn" onClick={() => api.toggleSite(s.id, !s.enabled).then(refresh)}>
-                    {s.enabled ? "Disable" : "Enable"}
+                    {s.enabled ? t("common.disable") : t("common.enable")}
                   </button>
                   <button
                     className="btn"
                     onClick={() => {
-                      if (confirm(`Delete site "${s.name}"?`)) api.deleteSite(s.id).then(refresh);
+                      if (confirm(t("sites.deleteConfirm", { name: s.name }))) api.deleteSite(s.id).then(refresh);
                     }}
                   >
-                    Delete
+                    {t("common.delete")}
                   </button>
                 </td>
               </tr>
@@ -89,7 +88,7 @@ export function SitesPage() {
             {sites.length === 0 && (
               <tr>
                 <td colSpan={5} className="muted">
-                  No sites yet.
+                  {t("sites.noSites")}
                 </td>
               </tr>
             )}
@@ -98,29 +97,33 @@ export function SitesPage() {
       </div>
 
       <div className="card">
-        <h3>{editingId !== null ? "Edit site" : "Add site"}</h3>
+        <h3>{editingId !== null ? t("sites.editSite") : t("sites.addSite")}</h3>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <input placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           <input
-            placeholder="Domain (e.g. shop.example.com)"
+            placeholder={t("sites.namePlaceholder")}
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+          <input
+            placeholder={t("sites.domainPlaceholder")}
             value={form.domain}
             onChange={(e) => setForm({ ...form, domain: e.target.value })}
           />
           <input
-            placeholder="Upstream (http://host:port)"
+            placeholder={t("sites.upstreamPlaceholder")}
             style={{ flex: 1 }}
             value={form.upstream_url}
             onChange={(e) => setForm({ ...form, upstream_url: e.target.value })}
           />
           <input
             type="number"
-            placeholder="Listen port"
+            placeholder={t("sites.listenPortPlaceholder")}
             style={{ width: 110 }}
             value={form.listen_port}
             onChange={(e) => setForm({ ...form, listen_port: Number(e.target.value) })}
           />
           <button className="btn" onClick={submit}>
-            {editingId !== null ? "Save" : "Add site"}
+            {editingId !== null ? t("common.save") : t("sites.addSite")}
           </button>
           {editingId !== null && (
             <button
@@ -130,7 +133,7 @@ export function SitesPage() {
                 setForm(emptyForm);
               }}
             >
-              Cancel
+              {t("common.cancel")}
             </button>
           )}
         </div>

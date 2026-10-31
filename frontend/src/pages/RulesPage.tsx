@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { api, CatalogEntry, RuleFile, RuleRow, RuleSet } from "../api/client";
+import { useLanguage } from "../i18n/LanguageContext";
 
 function RuleFilesPanel({ ruleSet, onChanged }: { ruleSet: RuleSet; onChanged: () => void }) {
+  const { t } = useLanguage();
   const [files, setFiles] = useState<RuleFile[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ id: number; filename: string; content: string } | null>(null);
@@ -52,52 +54,57 @@ function RuleFilesPanel({ ruleSet, onChanged }: { ruleSet: RuleSet; onChanged: (
             <div>
               <strong>{f.filename}</strong>{" "}
               <span className="muted">
-                {f.rule_count} rule(s) · {f.size_bytes} bytes {f.file_kind === "setup" && "· setup file"}
+                {t("rules.ruleCount", { count: f.rule_count })} · {f.size_bytes} bytes{" "}
+                {f.file_kind === "setup" && t("rules.setupFile")}
               </span>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button className="btn" onClick={() => openRules(f)}>
-                View rules
+                {t("rules.viewRules")}
               </button>
               {isCustom && (
                 <button className="btn" onClick={() => openEditor(f)}>
-                  Edit
+                  {t("common.edit")}
                 </button>
               )}
               <button className="btn" onClick={() => api.toggleRuleFile(f.id, !f.enabled).then(() => { refresh(); onChanged(); })}>
-                {f.enabled ? "Disable" : "Enable"}
+                {f.enabled ? t("common.disable") : t("common.enable")}
               </button>
               {isCustom && (
                 <button
                   className="btn"
                   onClick={() => {
-                    if (confirm(`Delete ${f.filename}?`)) {
+                    if (confirm(t("rules.deleteFileConfirm", { filename: f.filename }))) {
                       api.deleteRuleFile(f.id).then(() => { refresh(); onChanged(); });
                     }
                   }}
                 >
-                  Delete
+                  {t("common.delete")}
                 </button>
               )}
             </div>
           </div>
         ))}
       {files.filter((f) => f.file_kind !== "asset").length === 0 && (
-        <p className="muted">No rule files in this set.</p>
+        <p className="muted">{t("rules.noRuleFiles")}</p>
       )}
 
       {isCustom && (
         <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-          <input placeholder="new-rule.conf" value={newFilename} onChange={(e) => setNewFilename(e.target.value)} />
+          <input
+            placeholder={t("rules.newFilePlaceholder")}
+            value={newFilename}
+            onChange={(e) => setNewFilename(e.target.value)}
+          />
           <button className="btn" onClick={createFile}>
-            + New rule file
+            {t("rules.newFile")}
           </button>
         </div>
       )}
 
       {editing && (
         <div className="card">
-          <h3>Editing {editing.filename}</h3>
+          <h3>{t("rules.editingFile", { filename: editing.filename })}</h3>
           <textarea
             className="rule-editor"
             value={editing.content}
@@ -105,10 +112,10 @@ function RuleFilesPanel({ ruleSet, onChanged }: { ruleSet: RuleSet; onChanged: (
           />
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
             <button className="btn" onClick={saveEditor}>
-              Save
+              {t("common.save")}
             </button>
             <button className="btn" onClick={() => setEditing(null)}>
-              Cancel
+              {t("common.cancel")}
             </button>
           </div>
         </div>
@@ -116,12 +123,12 @@ function RuleFilesPanel({ ruleSet, onChanged }: { ruleSet: RuleSet; onChanged: (
 
       {rulesOf && (
         <div className="card">
-          <h3>Rules in this file</h3>
+          <h3>{t("rules.rulesInFile")}</h3>
           <table>
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Message</th>
+                <th>{t("rules.id")}</th>
+                <th>{t("rules.message")}</th>
                 <th></th>
               </tr>
             </thead>
@@ -141,7 +148,7 @@ function RuleFilesPanel({ ruleSet, onChanged }: { ruleSet: RuleSet; onChanged: (
                         })
                       }
                     >
-                      {r.enabled ? "Disable" : "Enable"}
+                      {r.enabled ? t("common.disable") : t("common.enable")}
                     </button>
                   </td>
                 </tr>
@@ -149,14 +156,14 @@ function RuleFilesPanel({ ruleSet, onChanged }: { ruleSet: RuleSet; onChanged: (
               {rulesOf.rows.length === 0 && (
                 <tr>
                   <td colSpan={3} className="muted">
-                    No individually-parsed rules found in this file.
+                    {t("rules.noParsedRules")}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
           <button className="btn" style={{ marginTop: 8 }} onClick={() => setRulesOf(null)}>
-            Close
+            {t("common.close")}
           </button>
         </div>
       )}
@@ -165,6 +172,7 @@ function RuleFilesPanel({ ruleSet, onChanged }: { ruleSet: RuleSet; onChanged: (
 }
 
 export function RulesPage() {
+  const { t } = useLanguage();
   const [ruleSets, setRuleSets] = useState<RuleSet[]>([]);
   const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
   const [expanded, setExpanded] = useState<number | null>(null);
@@ -213,11 +221,11 @@ export function RulesPage() {
 
   return (
     <div>
-      <h2>Rule Sets</h2>
+      <h2>{t("rules.title")}</h2>
       {error && <p>{error}</p>}
 
       <div className="card">
-        <h3>Import OWASP CRS (pick a version)</h3>
+        <h3>{t("rules.importCrsTitle")}</h3>
         {catalog.map((entry) => {
           const imported = ruleSets.some((rs) => rs.source_url === entry.url);
           return (
@@ -229,7 +237,7 @@ export function RulesPage() {
                 <div className="muted">{entry.description}</div>
               </div>
               <button className="btn" disabled={busy || imported} onClick={() => doImportCatalog(entry.id)}>
-                {imported ? "Imported" : busy ? "Importing..." : "Import"}
+                {imported ? t("rules.imported") : busy ? t("rules.importing") : t("rules.import")}
               </button>
             </div>
           );
@@ -237,51 +245,50 @@ export function RulesPage() {
       </div>
 
       <div className="card">
-        <h3>Import custom rule package from a URL</h3>
-        <p className="muted">
-          Points at a .tar.gz/.zip (any .conf/.data files inside are picked up) or a single raw .conf file.
-        </p>
+        <h3>{t("rules.importUrlTitle")}</h3>
+        <p className="muted">{t("rules.importUrlDesc")}</p>
         <div style={{ display: "flex", gap: 8 }}>
-          <input placeholder="Name" value={urlName} onChange={(e) => setUrlName(e.target.value)} />
+          <input placeholder={t("rules.namePlaceholder")} value={urlName} onChange={(e) => setUrlName(e.target.value)} />
           <input
-            placeholder="https://..."
+            placeholder={t("rules.urlPlaceholder")}
             style={{ flex: 1 }}
             value={urlUrl}
             onChange={(e) => setUrlUrl(e.target.value)}
           />
           <button className="btn" disabled={busy} onClick={doImportUrl}>
-            Import
+            {t("rules.import")}
           </button>
         </div>
       </div>
 
-      <h2>Installed Rule Sets</h2>
+      <h2>{t("rules.installedTitle")}</h2>
       {ruleSets.map((rs) => (
         <div className="card" key={rs.id}>
           <div className="rule-file-row" style={{ borderBottom: "none" }}>
             <div>
               <strong>{rs.name}</strong> {rs.version && <span className="muted">v{rs.version}</span>}{" "}
               <span className="muted">
-                · {rs.file_count} file(s) · {rs.rule_count} rule(s) · {rs.source_type}
+                · {t("rules.fileCount", { count: rs.file_count })} · {t("rules.ruleCount", { count: rs.rule_count })} ·{" "}
+                {rs.source_type}
               </span>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button className="btn" onClick={() => setExpanded(expanded === rs.id ? null : rs.id)}>
-                {expanded === rs.id ? "Hide files" : "Show files"}
+                {expanded === rs.id ? t("rules.hideFiles") : t("rules.showFiles")}
               </button>
               <button className="btn" onClick={() => api.toggleRuleSet(rs.id, !rs.enabled).then(refresh)}>
-                {rs.enabled ? "Disable" : "Enable"}
+                {rs.enabled ? t("common.disable") : t("common.enable")}
               </button>
               {rs.slug !== "custom" && (
                 <button
                   className="btn"
                   onClick={() => {
-                    if (confirm(`Delete rule set "${rs.name}"? This removes all its files and rules.`)) {
+                    if (confirm(t("rules.deleteSetConfirm", { name: rs.name }))) {
                       api.deleteRuleSet(rs.id).then(refresh);
                     }
                   }}
                 >
-                  Delete
+                  {t("common.delete")}
                 </button>
               )}
             </div>

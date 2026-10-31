@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { api, ErrorPage } from "../api/client";
+import { useLanguage } from "../i18n/LanguageContext";
 
 export function ErrorPagesPage() {
+  const { t } = useLanguage();
   const [pages, setPages] = useState<ErrorPage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ statusCode: number; html: string } | null>(null);
@@ -24,7 +26,7 @@ export function ErrorPagesPage() {
   }
 
   async function reset(statusCode: number) {
-    if (!confirm(`Reset the ${statusCode} page back to default?`)) return;
+    if (!confirm(t("errorPages.resetConfirm", { code: statusCode }))) return;
     await api.resetErrorPage(statusCode);
     if (editing?.statusCode === statusCode) setEditing(null);
     refresh();
@@ -32,12 +34,8 @@ export function ErrorPagesPage() {
 
   return (
     <div>
-      <h2>Error Pages</h2>
-      <p className="muted">
-        HTML yang ditampilkan ke pengunjung untuk status code tertentu (403 = diblokir WAF, 429 = rate limited,
-        413 = payload terlalu besar, 503 = service unavailable). Perubahan di sini langsung aktif tanpa reload
-        container.
-      </p>
+      <h2>{t("errorPages.title")}</h2>
+      <p className="muted">{t("errorPages.description")}</p>
 
       {error && <p>{error}</p>}
 
@@ -47,15 +45,15 @@ export function ErrorPagesPage() {
             <div>
               <strong>{p.status_code}</strong> - {p.title}{" "}
               <span className={`pill ${p.is_customized ? "blocked" : "ok"}`}>
-                {p.is_customized ? "Customized" : "Default"}
+                {p.is_customized ? t("errorPages.customized") : t("errorPages.default")}
               </span>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button className="btn" onClick={() => startEdit(p)}>
-                Edit
+                {t("common.edit")}
               </button>
               <button className="btn" disabled={!p.is_customized} onClick={() => reset(p.status_code)}>
-                Reset to default
+                {t("errorPages.resetToDefault")}
               </button>
             </div>
           </div>
@@ -64,10 +62,10 @@ export function ErrorPagesPage() {
 
       {editing && (
         <div className="card">
-          <h3>Editing {editing.statusCode} page</h3>
+          <h3>{t("errorPages.editingPage", { code: editing.statusCode })}</h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div>
-              <p className="muted">HTML</p>
+              <p className="muted">{t("errorPages.html")}</p>
               <textarea
                 className="rule-editor"
                 style={{ minHeight: 320, fontSize: 12 }}
@@ -76,7 +74,7 @@ export function ErrorPagesPage() {
               />
             </div>
             <div>
-              <p className="muted">Preview</p>
+              <p className="muted">{t("errorPages.preview")}</p>
               <iframe
                 title="preview"
                 srcDoc={editing.html}
@@ -87,10 +85,10 @@ export function ErrorPagesPage() {
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
             <button className="btn" onClick={save}>
-              Save
+              {t("common.save")}
             </button>
             <button className="btn" onClick={() => setEditing(null)}>
-              Cancel
+              {t("common.cancel")}
             </button>
           </div>
         </div>
