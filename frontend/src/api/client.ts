@@ -198,6 +198,23 @@ export const usersApi = {
   delete: (id: number) => request<void>(`/api/users/${id}`, { method: "DELETE" }),
 };
 
+export interface EngineSettings {
+  audit_engine: "On" | "Off" | "RelevantOnly";
+  audit_log_relevant_status: string;
+  request_body_access: boolean;
+  response_body_access: boolean;
+  request_body_limit: number;
+  response_body_limit: number;
+  response_body_mime_type: string;
+  updated_at: string | null;
+}
+
+export const engineSettingsApi = {
+  get: () => request<EngineSettings>("/api/engine-settings"),
+  update: (payload: Omit<EngineSettings, "updated_at">) =>
+    request<EngineSettings>("/api/engine-settings", { method: "PUT", body: JSON.stringify(payload) }),
+};
+
 export const api = {
   // Rule sets / CRS catalog
   listCatalog: () => request<CatalogEntry[]>("/api/catalog"),

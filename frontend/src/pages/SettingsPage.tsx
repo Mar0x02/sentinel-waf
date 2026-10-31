@@ -1,10 +1,113 @@
 import { useEffect, useState } from "react";
-import { api, LogSink } from "../api/client";
+import { api, EngineSettings, engineSettingsApi, LogSink } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { ChangePasswordForm } from "../components/ChangePasswordForm";
 import { useLanguage } from "../i18n/LanguageContext";
 
 const emptyForm = { name: "", protocol: "udp" as "udp" | "tcp", host: "", port: 514 };
+
+function EngineSettingsCard() {
+  const { t } = useLanguage();
+  const [engine, setEngine] = useState<EngineSettings | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+
+  function refresh() {
+    engineSettingsApi.get().then(setEngine).catch((e) => setStatus(String(e)));
+  }
+
+  useEffect(refresh, []);
+
+  async function save() {
+    if (!engine) return;
+    setStatus(null);
+    try {
+      const { updated_at, ...payload } = engine;
+      const updated = await engineSettingsApi.update(payload);
+      setEngine(updated);
+      setStatus(t("engine.saveSuccess"));
+    } catch (e) {
+      setStatus(t("engine.saveError", { error: String(e) }));
+    }
+  }
+
+  if (!engine) return null;
+
+  return (
+    <div className="card">
+      <h3>{t("engine.title")}</h3>
+      <p className="muted">{t("engine.description")}</p>
+      {status && <p>{status}</p>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 480 }}>
+        <label>
+          {t("engine.auditEngine")}
+          <select
+            value={engine.audit_engine}
+            onChange={(e) => setEngine({ ...engine, audit_engine: e.target.value as EngineSettings["audit_engine"] })}
+            style={{ display: "block", marginTop: 4, width: "100%" }}
+          >
+            <option value="On">{t("engine.auditEngineOn")}</option>
+            <option value="Off">{t("engine.auditEngineOff")}</option>
+            <option value="RelevantOnly">{t("engine.auditEngineRelevant")}</option>
+          </select>
+        </label>
+        <label>
+          {t("engine.auditLogRelevantStatus")}
+          <input
+            value={engine.audit_log_relevant_status}
+            onChange={(e) => setEngine({ ...engine, audit_log_relevant_status: e.target.value })}
+            style={{ display: "block", marginTop: 4, width: "100%" }}
+          />
+          <span className="muted">{t("engine.auditLogRelevantStatusHint")}</span>
+        </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <input
+            type="checkbox"
+            checked={engine.request_body_access}
+            onChange={(e) => setEngine({ ...engine, request_body_access: e.target.checked })}
+          />
+          {t("engine.requestBodyAccess")}
+        </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <input
+            type="checkbox"
+            checked={engine.response_body_access}
+            onChange={(e) => setEngine({ ...engine, response_body_access: e.target.checked })}
+          />
+          {t("engine.responseBodyAccess")}
+        </label>
+        <label>
+          {t("engine.requestBodyLimit")}
+          <input
+            type="number"
+            value={engine.request_body_limit}
+            onChange={(e) => setEngine({ ...engine, request_body_limit: Number(e.target.value) })}
+            style={{ display: "block", marginTop: 4, width: "100%" }}
+          />
+        </label>
+        <label>
+          {t("engine.responseBodyLimit")}
+          <input
+            type="number"
+            value={engine.response_body_limit}
+            onChange={(e) => setEngine({ ...engine, response_body_limit: Number(e.target.value) })}
+            style={{ display: "block", marginTop: 4, width: "100%" }}
+          />
+        </label>
+        <label>
+          {t("engine.responseBodyMimeType")}
+          <input
+            value={engine.response_body_mime_type}
+            onChange={(e) => setEngine({ ...engine, response_body_mime_type: e.target.value })}
+            style={{ display: "block", marginTop: 4, width: "100%" }}
+          />
+        </label>
+        <button className="btn" onClick={save}>
+          {t("engine.save")}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function SettingsPage() {
   const { t } = useLanguage();
@@ -117,6 +220,8 @@ export function SettingsPage() {
           </div>
         </div>
       )}
+
+      {isAdmin && <EngineSettingsCard />}
 
       <h2>{t("auth.accountSection")}</h2>
       <div className="card">
