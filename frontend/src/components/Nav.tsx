@@ -1,8 +1,10 @@
 import { NavLink } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
 import { useLanguage } from "../i18n/LanguageContext";
 
 export function Nav() {
   const { lang, setLang, t } = useLanguage();
+  const { username, logout } = useAuth();
 
   return (
     <nav className="nav">
@@ -26,13 +28,23 @@ export function Nav() {
         {t("nav.settings")}
       </NavLink>
 
-      <div className="lang-switch">
-        <button className={lang === "en" ? "active" : ""} onClick={() => setLang("en")}>
-          EN
+      <div style={{ marginTop: "auto" }}>
+        {username && (
+          <div className="muted" style={{ padding: "0 12px", fontSize: 12, marginBottom: 8 }}>
+            {username}
+          </div>
+        )}
+        <button className="btn" style={{ width: "100%", marginBottom: 10 }} onClick={logout}>
+          {t("nav.logout")}
         </button>
-        <button className={lang === "id" ? "active" : ""} onClick={() => setLang("id")}>
-          ID
-        </button>
+        <div className="lang-switch">
+          <button className={lang === "en" ? "active" : ""} onClick={() => setLang("en")}>
+            EN
+          </button>
+          <button className={lang === "id" ? "active" : ""} onClick={() => setLang("id")}>
+            ID
+          </button>
+        </div>
       </div>
     </nav>
   );

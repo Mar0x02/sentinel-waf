@@ -123,11 +123,29 @@ export interface TrendPoint {
   blocked: number;
 }
 
+export const TOKEN_STORAGE_KEY = "sentinel-waf-token";
+
+// Set by AuthContext so a 401 anywhere can force a re-login without every
+// call site having to handle it individually.
+let onUnauthorized: (() => void) | null = null;
+export function setUnauthorizedHandler(handler: () => void) {
+  onUnauthorized = handler;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = localStorage.getItem(TOKEN_STORAGE_KEY);
   const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     ...init,
   });
+  if (res.status === 401) {
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    onUnauthorized?.();
+    throw new Error("401 Unauthorized");
+  }
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`${res.status} ${res.statusText}: ${body}`);
@@ -135,6 +153,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (res.status === 204) return undefined as T;
   return res.json();
 }
+
+export interface LoginResult {
+  access_token: string;
+  must_change_password: boolean;
+}
+
+export const authApi = {
+  login: (username: string, password: string) =>
+    request<LoginResult>("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }),
+  me: () => request<{ username: string; must_change_password: boolean }>("/api/auth/me"),
+  changePassword: (current_password: string, new_password: string) =>
+    request<{ username: string; must_change_password: boolean }>("/api/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ current_password, new_password }),
+    }),
+};
 
 export const api = {
   // Rule sets / CRS catalog

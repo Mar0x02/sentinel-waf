@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, LogSink } from "../api/client";
+import { ChangePasswordForm } from "../components/ChangePasswordForm";
 import { useLanguage } from "../i18n/LanguageContext";
 
 const emptyForm = { name: "", protocol: "udp" as "udp" | "tcp", host: "", port: 514 };
@@ -9,6 +10,7 @@ export function SettingsPage() {
   const [sinks, setSinks] = useState<LogSink[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [passwordChanged, setPasswordChanged] = useState(false);
 
   function refresh() {
     api.listLogSinks().then(setSinks).catch((e) => setError(String(e)));
@@ -106,6 +108,16 @@ export function SettingsPage() {
             {t("settings.addSink")}
           </button>
         </div>
+      </div>
+
+      <h2>{t("auth.accountSection")}</h2>
+      <div className="card">
+        <p className="muted">{t("auth.changePasswordDesc")}</p>
+        {passwordChanged ? (
+          <p>{t("auth.changeSuccess")}</p>
+        ) : (
+          <ChangePasswordForm onSuccess={() => setPasswordChanged(true)} />
+        )}
       </div>
     </div>
   );

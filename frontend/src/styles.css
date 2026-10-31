@@ -277,3 +277,58 @@ textarea.rule-editor {
   background: var(--surface-1);
   color: var(--text-primary);
 }
+
+.login-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--page-plane);
+}
+
+.login-card {
+  width: 340px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.login-card h1 {
+  font-size: 16px;
+  margin: 0;
+  text-align: center;
+}
+
+.login-card h2 {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0 0 8px;
+  text-align: center;
+  font-weight: 500;
+}
+
+.login-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.login-card input {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-1);
+  color: var(--text-primary);
+}
+
+.login-error {
+  color: var(--status-critical);
+  font-size: 13px;
+  text-align: center;
+}
