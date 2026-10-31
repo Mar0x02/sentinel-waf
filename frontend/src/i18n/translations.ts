@@ -132,6 +132,13 @@ export const translations: Record<Lang, Record<string, string>> = {
     "tuning.saveSuccess": "Tuning saved.",
     "tuning.saveError": "Failed to save: {error}",
 
+    "tunables.title": "Other detected tunables",
+    "tunables.description": "Auto-detected from setup file comments - any other setvar:tx.X=Y knob beyond paranoia/anomaly above. Toggle to activate/deactivate, edit the value, then save.",
+    "tunables.none": "No other tunables detected in this rule set's setup file.",
+    "tunables.active": "Active",
+    "tunables.save": "Save",
+    "tunables.saveError": "Failed to save: {error}",
+
     "sites.title": "Sites (Reverse Proxy)",
     "sites.description":
       "Each enabled site becomes an nginx server block on the waf-engine container, protected by whatever rule sets are active on the Rules page. HTTP only for now - see README for TLS.",
@@ -324,6 +331,13 @@ export const translations: Record<Lang, Record<string, string>> = {
     "tuning.save": "Simpan tuning",
     "tuning.saveSuccess": "Tuning tersimpan.",
     "tuning.saveError": "Gagal nyimpen: {error}",
+
+    "tunables.title": "Tunable lain terdeteksi",
+    "tunables.description": "Ke-detect otomatis dari komentar di file setup - knob setvar:tx.X=Y lain di luar paranoia/anomaly di atas. Toggle buat aktif/nonaktif, edit nilainya, terus simpan.",
+    "tunables.none": "Gak ada tunable lain yang ke-detect di file setup rule set ini.",
+    "tunables.active": "Aktif",
+    "tunables.save": "Simpan",
+    "tunables.saveError": "Gagal nyimpen: {error}",
 
     "sites.title": "Sites (Reverse Proxy)",
     "sites.description":

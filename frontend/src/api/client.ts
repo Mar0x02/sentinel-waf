@@ -51,6 +51,13 @@ export interface CrsTuning {
   outbound_anomaly_score_threshold: number;
 }
 
+export interface TunableGroup {
+  rule_id: string;
+  description: string | null;
+  is_active: boolean;
+  variables: Record<string, string>;
+}
+
 export interface Site {
   id: number;
   name: string;
@@ -284,6 +291,15 @@ export const api = {
   getTuning: (ruleSetId: number) => request<CrsTuning>(`/api/rule-sets/${ruleSetId}/tuning`),
   updateTuning: (ruleSetId: number, tuning: CrsTuning) =>
     request<CrsTuning>(`/api/rule-sets/${ruleSetId}/tuning`, { method: "PUT", body: JSON.stringify(tuning) }),
+
+  // Generic auto-detected tunables (any setvar:tx.X=Y block in the setup
+  // file, beyond the 4 covered by getTuning/updateTuning above).
+  listTunables: (ruleSetId: number) => request<TunableGroup[]>(`/api/rule-sets/${ruleSetId}/tunables`),
+  updateTunable: (ruleSetId: number, ruleId: string, is_active: boolean, variables: Record<string, string>) =>
+    request<TunableGroup>(`/api/rule-sets/${ruleSetId}/tunables/${ruleId}`, {
+      method: "PUT",
+      body: JSON.stringify({ is_active, variables }),
+    }),
 
   // Sites (reverse proxy)
   listSites: () => request<Site[]>("/api/sites"),

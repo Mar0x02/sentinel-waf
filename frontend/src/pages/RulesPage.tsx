@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, CatalogEntry, CrsTuning, RuleFile, RuleRow, RuleSet } from "../api/client";
+import { api, CatalogEntry, CrsTuning, RuleFile, RuleRow, RuleSet, TunableGroup } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { useLanguage } from "../i18n/LanguageContext";
 
@@ -94,6 +94,79 @@ function CrsTuningPanel({ ruleSetId }: { ruleSetId: number }) {
   );
 }
 
+function TunableRow({ ruleSetId, group }: { ruleSetId: number; group: TunableGroup }) {
+  const { t } = useLanguage();
+  const { canWrite } = useAuth();
+  const [active, setActive] = useState(group.is_active);
+  const [variables, setVariables] = useState(group.variables);
+  const [status, setStatus] = useState<string | null>(null);
+
+  async function save() {
+    setStatus(null);
+    try {
+      await api.updateTunable(ruleSetId, group.rule_id, active, variables);
+    } catch (e) {
+      setStatus(t("tunables.saveError", { error: String(e) }));
+    }
+  }
+
+  return (
+    <div className="rule-file-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 6 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <strong>id:{group.rule_id}</strong>{" "}
+          {group.description && <span className="muted">· {group.description}</span>}
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+          <input type="checkbox" checked={active} disabled={!canWrite} onChange={(e) => setActive(e.target.checked)} />
+          {t("tunables.active")}
+        </label>
+      </div>
+      {status && <p className="muted">{status}</p>}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {Object.entries(variables).map(([name, value]) => (
+          <label key={name} style={{ fontSize: 12 }}>
+            {name}
+            <input
+              value={value}
+              disabled={!canWrite}
+              onChange={(e) => setVariables({ ...variables, [name]: e.target.value })}
+              style={{ display: "block", marginTop: 2 }}
+            />
+          </label>
+        ))}
+        {canWrite && (
+          <button className="btn" style={{ alignSelf: "flex-end" }} onClick={save}>
+            {t("tunables.save")}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TunablesPanel({ ruleSetId }: { ruleSetId: number }) {
+  const { t } = useLanguage();
+  const [groups, setGroups] = useState<TunableGroup[] | null>(null);
+
+  useEffect(() => {
+    api.listTunables(ruleSetId).then(setGroups).catch(() => setGroups([]));
+  }, [ruleSetId]);
+
+  if (groups === null) return null;
+
+  return (
+    <div className="card">
+      <h3>{t("tunables.title")}</h3>
+      <p className="muted">{t("tunables.description")}</p>
+      {groups.length === 0 && <p className="muted">{t("tunables.none")}</p>}
+      {groups.map((g) => (
+        <TunableRow key={g.rule_id} ruleSetId={ruleSetId} group={g} />
+      ))}
+    </div>
+  );
+}
+
 function RuleFilesPanel({ ruleSet, onChanged }: { ruleSet: RuleSet; onChanged: () => void }) {
   const { t } = useLanguage();
   const { canWrite } = useAuth();
@@ -141,7 +214,12 @@ function RuleFilesPanel({ ruleSet, onChanged }: { ruleSet: RuleSet; onChanged: (
 
   return (
     <>
-      {hasSetupFile && <CrsTuningPanel ruleSetId={ruleSet.id} />}
+      {hasSetupFile && (
+        <>
+          <CrsTuningPanel ruleSetId={ruleSet.id} />
+          <TunablesPanel ruleSetId={ruleSet.id} />
+        </>
+      )}
       <div className="card" style={{ marginTop: 8 }}>
       {error && <p>{error}</p>}
       {files
