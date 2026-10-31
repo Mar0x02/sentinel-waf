@@ -1,0 +1,10 @@
+Include /etc/modsecurity.d/modsecurity.conf
+Include /etc/modsecurity.d/modsecurity-override.conf
+
+# All rule content (including OWASP CRS, once imported) is managed by the
+# dashboard backend and rendered here - see
+# backend/app/services/render_service.py and CLAUDE.md. The vendor's own
+# baked-in /opt/owasp-crs is intentionally never included: the dashboard's
+# Postgres database is the single source of truth for which rules run, so
+# importing "OWASP CRS" through the dashboard is what actually activates it.
+Include /etc/modsecurity.d/dashboard-rules/*/*.conf
