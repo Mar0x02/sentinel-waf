@@ -25,6 +25,10 @@ auditable dan gampang di-manage dari satu tempat.
   dashboard (trend serangan, top rule yang ke-trigger, top IP penyerang).
 - **Live reload otomatis** - perubahan rule atau site dari dashboard
   langsung diterapkan ke container WAF tanpa restart manual.
+- **Custom error pages** - halaman HTML yang ditampilkan untuk status 403
+  (diblokir WAF), 429 (rate limited), 413 (payload kebesaran), dan 503
+  (service unavailable) bisa diedit langsung dari dashboard, lengkap
+  dengan preview dan tombol reset ke default.
 
 ## Arsitektur
 
