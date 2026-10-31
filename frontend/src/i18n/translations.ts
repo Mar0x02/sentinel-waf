@@ -178,6 +178,10 @@ export const translations: Record<Lang, Record<string, string>> = {
     "engine.save": "Save engine settings",
     "engine.saveSuccess": "Engine settings saved - waf-engine will reload automatically.",
     "engine.saveError": "Failed to save: {error}",
+    "engine.advancedTitle": "Advanced",
+    "engine.advancedToggle": "Show advanced",
+    "engine.advancedDesc": "Raw ModSecurity directives for anything not covered above (e.g. SecPcreMatchLimit, SecCollectionTimeout). Loaded after the settings above, so a directive here can override one of them. If this breaks the config, waf-engine automatically keeps your previous settings running instead of reloading - it won't take the WAF down, but double-check it took effect.",
+    "engine.advancedPlaceholder": "# e.g.\nSecPcreMatchLimit 100000",
   },
   id: {
     "common.save": "Simpan",
@@ -356,5 +360,9 @@ export const translations: Record<Lang, Record<string, string>> = {
     "engine.save": "Simpan pengaturan engine",
     "engine.saveSuccess": "Pengaturan engine tersimpan - waf-engine bakal reload otomatis.",
     "engine.saveError": "Gagal nyimpen: {error}",
+    "engine.advancedTitle": "Advanced",
+    "engine.advancedToggle": "Tampilkan advanced",
+    "engine.advancedDesc": "Directive ModSecurity mentah buat yang belum ke-cover di atas (misal SecPcreMatchLimit, SecCollectionTimeout). Dimuat setelah pengaturan di atas, jadi directive di sini bisa nge-override salah satunya. Kalau ini bikin config rusak, waf-engine otomatis tetep pakai pengaturan lama (gak reload) - WAF gak bakal down, tapi cek lagi apa perubahannya beneran kepake.",
+    "engine.advancedPlaceholder": "# contoh\nSecPcreMatchLimit 100000",
   },
 };

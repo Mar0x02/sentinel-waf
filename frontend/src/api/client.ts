@@ -206,6 +206,7 @@ export interface EngineSettings {
   request_body_limit: number;
   response_body_limit: number;
   response_body_mime_type: string;
+  advanced_config: string;
   updated_at: string | null;
 }
 

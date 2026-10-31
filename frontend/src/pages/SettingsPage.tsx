@@ -10,6 +10,7 @@ function EngineSettingsCard() {
   const { t } = useLanguage();
   const [engine, setEngine] = useState<EngineSettings | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   function refresh() {
     engineSettingsApi.get().then(setEngine).catch((e) => setStatus(String(e)));
@@ -101,6 +102,22 @@ function EngineSettingsCard() {
             style={{ display: "block", marginTop: 4, width: "100%" }}
           />
         </label>
+
+        <button className="btn" style={{ alignSelf: "flex-start" }} onClick={() => setShowAdvanced(!showAdvanced)}>
+          {showAdvanced ? `▾ ${t("engine.advancedTitle")}` : `▸ ${t("engine.advancedToggle")}`}
+        </button>
+        {showAdvanced && (
+          <div>
+            <p className="muted">{t("engine.advancedDesc")}</p>
+            <textarea
+              className="rule-editor"
+              placeholder={t("engine.advancedPlaceholder")}
+              value={engine.advanced_config}
+              onChange={(e) => setEngine({ ...engine, advanced_config: e.target.value })}
+            />
+          </div>
+        )}
+
         <button className="btn" onClick={save}>
           {t("engine.save")}
         </button>
