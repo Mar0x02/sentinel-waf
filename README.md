@@ -55,7 +55,7 @@ reload nginx saat ada perubahan.
 
 ```bash
 # 1. Clone repo ini
-git clone https://github.com/<username>/sentinel-waf.git
+git clone https://github.com/Mar0x02/sentinel-waf.git
 cd sentinel-waf
 
 # 2. Build & jalankan semua service
