@@ -1,6 +1,12 @@
 Include /etc/modsecurity.d/modsecurity.conf
 Include /etc/modsecurity.d/modsecurity-override.conf
 
+# Global engine directives (SecAuditEngine, body inspection limits, etc.)
+# managed from the dashboard's Settings page - loads after modsecurity.conf
+# so it overrides whatever the image's env-var defaults set. See
+# backend/app/services/render_service.py's render_engine_settings().
+Include /etc/modsecurity.d/dashboard-engine-settings/*.conf
+
 # All rule content (including OWASP CRS, once imported) is managed by the
 # dashboard backend and rendered here - see
 # backend/app/services/render_service.py and CLAUDE.md. The vendor's own
