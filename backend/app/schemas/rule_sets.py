@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.models import FileKind, SourceType
 
@@ -84,3 +84,25 @@ class CustomRuleFileUpdate(BaseModel):
 
 class EnabledPatch(BaseModel):
     enabled: bool
+
+
+class CrsTuningOut(BaseModel):
+    blocking_paranoia_level: int
+    detection_paranoia_level: int
+    inbound_anomaly_score_threshold: int
+    outbound_anomaly_score_threshold: int
+
+
+class CrsTuningUpdate(BaseModel):
+    blocking_paranoia_level: int = Field(ge=1, le=4)
+    detection_paranoia_level: int = Field(ge=1, le=4)
+    inbound_anomaly_score_threshold: int = Field(ge=0, le=1000)
+    outbound_anomaly_score_threshold: int = Field(ge=0, le=1000)
+
+    @model_validator(mode="after")
+    def check_detection_not_below_blocking(self) -> "CrsTuningUpdate":
+        # CRS's own documented constraint: detection_paranoia_level must
+        # not be lower than blocking_paranoia_level.
+        if self.detection_paranoia_level < self.blocking_paranoia_level:
+            raise ValueError("detection_paranoia_level must not be lower than blocking_paranoia_level")
+        return self

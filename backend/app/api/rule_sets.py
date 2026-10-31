@@ -6,8 +6,10 @@ from app.auth import require_write_access
 from app.catalog import CRS_CATALOG, CatalogEntry, get_catalog_entry
 from app.config import Settings, get_settings
 from app.db import get_db
-from app.models import Rule, RuleFile, RuleSet
+from app.models import FileKind, Rule, RuleFile, RuleSet
 from app.schemas.rule_sets import (
+    CrsTuningOut,
+    CrsTuningUpdate,
     CustomRuleFileCreate,
     CustomRuleFileUpdate,
     EnabledPatch,
@@ -18,7 +20,7 @@ from app.schemas.rule_sets import (
     RuleOut,
     RuleSetOut,
 )
-from app.services import importer, render_service
+from app.services import crs_tuning, importer, render_service
 from app.services.importer import CUSTOM_RULE_SET_SLUG
 
 router = APIRouter(prefix="/api", tags=["rules"])
@@ -152,6 +154,45 @@ def list_rule_files(rule_set_id: int, db: Session = Depends(get_db)):
     return [_rule_file_out(db, rf) for rf in rule_set.files]
 
 
+def _get_setup_file(db: Session, rule_set_id: int) -> RuleFile:
+    rule_set = db.get(RuleSet, rule_set_id)
+    if rule_set is None:
+        raise HTTPException(404, "Rule set not found")
+    setup_file = next((rf for rf in rule_set.files if rf.file_kind == FileKind.setup), None)
+    if setup_file is None:
+        raise HTTPException(404, "This rule set has no setup file (e.g. crs-setup.conf) to tune")
+    return setup_file
+
+
+@router.get("/rule-sets/{rule_set_id}/tuning", response_model=CrsTuningOut)
+def get_tuning(rule_set_id: int, db: Session = Depends(get_db)):
+    setup_file = _get_setup_file(db, rule_set_id)
+    return crs_tuning.read_tuning(setup_file.content)
+
+
+@router.put("/rule-sets/{rule_set_id}/tuning", response_model=CrsTuningOut)
+def update_tuning(
+    rule_set_id: int,
+    payload: CrsTuningUpdate,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    _=Depends(require_write_access),
+):
+    setup_file = _get_setup_file(db, rule_set_id)
+    new_content = crs_tuning.write_tuning(
+        setup_file.content,
+        crs_tuning.CrsTuning(
+            blocking_paranoia_level=payload.blocking_paranoia_level,
+            detection_paranoia_level=payload.detection_paranoia_level,
+            inbound_anomaly_score_threshold=payload.inbound_anomaly_score_threshold,
+            outbound_anomaly_score_threshold=payload.outbound_anomaly_score_threshold,
+        ),
+    )
+    importer.update_custom_rule_file(db, setup_file, new_content)
+    _rerender(db, settings)
+    return crs_tuning.read_tuning(new_content)
+
+
 @router.post("/rule-files", response_model=RuleFileOut, status_code=201)
 def create_rule_file(
     payload: CustomRuleFileCreate,
@@ -186,11 +227,15 @@ def update_rule_file(
     rule_file = db.get(RuleFile, rule_file_id)
     if rule_file is None:
         raise HTTPException(404, "Rule file not found")
-    if rule_file.rule_set.slug != CUSTOM_RULE_SET_SLUG:
+    # "setup" files (crs-setup.conf and friends) are meant to be tuned per
+    # deployment - that's their whole purpose, unlike the rule files
+    # proper, which stay locked so an imported set remains trustworthy
+    # relative to its source. See CLAUDE.md.
+    if rule_file.rule_set.slug != CUSTOM_RULE_SET_SLUG and rule_file.file_kind != FileKind.setup:
         raise HTTPException(
             403,
-            "Only custom rule files can be edited directly - disable individual rules or "
-            "the whole file/rule set instead of editing imported content.",
+            "Only custom rule files and setup files (e.g. crs-setup.conf) can be edited directly - "
+            "disable individual rules or the whole file/rule set instead of editing imported rule content.",
         )
     rule_file = importer.update_custom_rule_file(db, rule_file, payload.content)
     _rerender(db, settings)
