@@ -32,6 +32,11 @@ auditable dan gampang di-manage dari satu tempat.
 - **Log forwarding** - audit log ModSecurity bisa diarahkan ke syslog
   server eksternal (SIEM, dst), selain tetap bisa dilihat langsung di
   dashboard (trend serangan, top rule yang ke-trigger, top IP penyerang).
+- **Notifikasi Discord** - tiap request yang diblokir WAF langsung kekirim
+  ke channel Discord (di-batch biar gak kena rate-limit webhook Discord
+  pas lagi diserang rame). Atur dari tab Settings, khusus Admin. Cara
+  dapet webhook URL: di Discord, Server Settings → Integrations →
+  Webhooks → New Webhook, pilih channel-nya, copy URL-nya, paste di sini.
 - **Live reload otomatis** - perubahan rule atau site dari dashboard
   langsung diterapkan ke container WAF tanpa restart manual.
 - **Custom error pages** - halaman HTML yang ditampilkan untuk status 403
