@@ -65,12 +65,19 @@ reload nginx saat ada perubahan.
 git clone https://github.com/Mar0x02/sentinel-waf.git
 cd sentinel-waf
 
-# 2. Build & jalankan semua service
-docker compose up --build
+# 2. Jalankan installer - build, start semua service di background,
+#    dan begitu backend siap, langsung tampilkan username + password
+#    admin awal di terminal ini (gak perlu command tambahan).
+./install.sh
 ```
 
-Tunggu sampai semua container `Up` (cek dengan `docker compose ps` di
-terminal lain). Setelah itu buka:
+`install.sh` itu cuma wrapper tipis di atas `docker compose up -d --build`
+yang nunggu backend siap sebelum nampilin credential - stack-nya sendiri
+tetap jalan di background seperti biasa setelah installer selesai. Kalau
+mau jalanin manual tanpa installer: `docker compose up -d --build`, lalu
+`docker compose logs backend | grep -A5 "admin account created"`.
+
+Setelah itu buka:
 
 - **Dashboard**: `http://localhost:5173`
 - **Backend API**: `http://localhost:8000` (opsional, cuma kalau mau cek API langsung)
@@ -79,15 +86,9 @@ terminal lain). Setelah itu buka:
 ## Login pertama kali
 
 Dashboard butuh login - **tidak ada password default yang bisa ditebak**.
-Saat `backend` pertama kali jalan (sekali saja, di instalasi awal), dia
-otomatis bikin satu akun admin dengan password random, dan nampilin
-password itu **cuma sekali** di log container:
-
-```bash
-docker compose logs backend | grep -A5 "admin account created"
-```
-
-Hasilnya kira-kira:
+`install.sh` nampilin username + password admin itu langsung di terminal.
+Password ini **cuma ditampilkan sekali** (gak pernah disimpan dalam bentuk
+plaintext di mana pun), kira-kira begini:
 
 ```
 ==================================================================
