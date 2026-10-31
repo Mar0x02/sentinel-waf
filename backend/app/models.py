@@ -131,3 +131,29 @@ class ErrorPage(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class Admin(Base):
+    """Dashboard login account. Single-admin for now - see CLAUDE.md for
+    why (no multi-user table/roles yet, deliberately).
+    """
+
+    __tablename__ = "admins"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AppSecret(Base):
+    """Generic key/value store for server-generated secrets (currently just
+    the JWT signing key) that need to survive container restarts without
+    requiring the user to configure anything. See app/auth.py.
+    """
+
+    __tablename__ = "app_secrets"
+
+    key: Mapped[str] = mapped_column(String, primary_key=True)
+    value: Mapped[str] = mapped_column(String, nullable=False)
