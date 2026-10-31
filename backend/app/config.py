@@ -1,0 +1,42 @@
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    database_url: str = "postgresql+psycopg2://waf:waf@postgres:5432/waf"
+
+    # Shared volume (also mounted into the waf-engine container) that this
+    # backend renders ModSecurity rule config into. Structure is rendered by
+    # app/services/render_service.py - see CLAUDE.md for the exact layout
+    # and why it's shaped this way (Include glob ordering, data-file name
+    # collisions across rule sets, etc).
+    rules_render_dir: Path = Path("/render/modsecurity-rules")
+
+    # Shared volume (also mounted into the waf-engine container) where one
+    # nginx server block per enabled Site is rendered.
+    sites_render_dir: Path = Path("/render/nginx-sites")
+
+    # Shared volume (also mounted into the log-forwarder container) holding
+    # the rendered log sink configuration (see app/services/render_service.py).
+    log_sink_config_path: Path = Path("/render/log-sinks/log-sinks.json")
+
+    # Directory containing ModSecurity audit log file(s) to read from.
+    audit_log_dir: Path = Path("/data/logs")
+
+    # Which audit log parser/adapter to use. See app/adapters/.
+    # "modsec_v3_json" = ModSecurity v3 (libmodsecurity) JSON audit log,
+    # the default format produced by the nginx connector / coreruleset
+    # docker images. Add more adapters here as other WAF backends are
+    # supported (e.g. Apache + mod_security2 native format).
+    audit_log_format: str = "modsec_v3_json"
+
+    class Config:
+        env_prefix = "WAF_"
+        env_file = ".env"
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
