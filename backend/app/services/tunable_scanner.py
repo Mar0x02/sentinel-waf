@@ -136,3 +136,95 @@ def apply_tunable(content: str, rule_id: str, variables: dict[str, str], active:
     new_block = "".join(new_lines)
 
     return content[:start] + new_block + content[end:]
+
+
+def add_raw_action(content: str, rule_id: str, phase: int, actions: list[str]) -> str:
+    """Appends a brand-new, already-active SecAction block with arbitrary
+    actions - not necessarily setvar:tx.X=Y, unlike add_tunable(). Used
+    for fixes that aren't a tx.* value assignment, e.g.
+    initcol:ip=%{REMOTE_ADDR} (see tx_var_linter.py's
+    "uninitialized_collection" warning)."""
+    action_list = ",\\\n    ".join(actions)
+    block = f'\nSecAction \\\n    "id:{rule_id},\\\n    phase:{phase},\\\n    pass,\\\n    nolog,\\\n    {action_list}"\n'
+    return content.rstrip("\n") + "\n" + block
+
+
+def add_tunable(content: str, rule_id: str, variables: dict[str, str], phase: int = 1) -> str:
+    """Appends a brand-new, already-active SecAction block defining
+    `variables` via setvar - for a tx.* var that doesn't exist *anywhere*
+    yet, as opposed to apply_tunable() which edits an existing block in
+    place. Used for the Base Tuning rule set when a custom rule references
+    a var with no existing (even inactive) tunable to activate - see
+    tx_var_linter.py's "create a new one" fix path. Caller is responsible
+    for picking a rule_id that doesn't collide with anything else active.
+    """
+    setvars = ",\\\n    ".join(f"setvar:tx.{name}={value}" for name, value in variables.items())
+    block = f'\nSecAction \\\n    "id:{rule_id},\\\n    phase:{phase},\\\n    pass,\\\n    nolog,\\\n    t:none,\\\n    {setvars}"\n'
+    return content.rstrip("\n") + "\n" + block
+
+
+def sync_from_source(source_content: str, target_content: str) -> tuple[str, list[str]]:
+    """Like carry_over_tunables, but matches purely by *variable name*
+    across every active tunable in `source_content`, not by matching rule
+    id - needed when source and target don't share the same id scheme.
+    Confirmed by testing this is NOT the same case carry_over_tunables
+    handles: Base Tuning covers paranoia/severity/threshold vars in one
+    combined id:100900 block, while CRS's own crs-setup.conf splits the
+    exact same variable names across four separate ids
+    (900000/900001/900100/900110) - id-based matching found zero overlap
+    between them even though every variable name matched.
+
+    Builds a flat name->value map from every active source tunable, then
+    for each target block (commented or not) where *every* variable name
+    is covered by that map, applies those values and activates it. A
+    target block with only some of its names covered is skipped entirely
+    - same "never guess" principle as carry_over_tunables, a half-filled
+    block is worse than an unfilled one.
+    """
+    source_values: dict[str, str] = {}
+    for group in scan_tunables(source_content):
+        if group.is_active:
+            for name, value in group.variables.items():
+                source_values[name.lower()] = value
+
+    applied: list[str] = []
+    for group in scan_tunables(target_content):
+        names = list(group.variables.keys())
+        if not names or any(name.lower() not in source_values for name in names):
+            continue
+        values = {name: source_values[name.lower()] for name in names}
+        target_content = apply_tunable(target_content, group.rule_id, values, active=True)
+        applied.append(group.rule_id)
+
+    return target_content, applied
+
+
+def carry_over_tunables(old_content: str, new_content: str) -> tuple[str, list[str]]:
+    """For migrating hand-tuning forward onto a freshly imported setup
+    file (e.g. upgrading CRS 4.29 -> 4.30): copies every ACTIVE tunable's
+    values from `old_content` onto the matching block in `new_content`,
+    activating it there too.
+
+    Only applies when the id AND every variable name match exactly between
+    old and new - a different CRS major version can reuse the same id for
+    a renamed variable (confirmed: CRS 3.x's id:900000 sets
+    tx.paranoia_level, CRS 4.x's id:900000 sets
+    tx.blocking_paranoia_level - same id, different var). A mismatch is
+    always skipped rather than guessed at, so this never forces a value
+    onto an unrelated variable - worst case, a tunable simply isn't
+    carried over and keeps the new version's shipped default.
+    """
+    old_groups = {g.rule_id: g for g in scan_tunables(old_content) if g.is_active}
+    new_groups = {g.rule_id: g for g in scan_tunables(new_content)}
+
+    applied: list[str] = []
+    for rule_id, old_group in old_groups.items():
+        new_group = new_groups.get(rule_id)
+        if new_group is None:
+            continue
+        if {k.lower() for k in old_group.variables} != {k.lower() for k in new_group.variables}:
+            continue
+        new_content = apply_tunable(new_content, rule_id, old_group.variables, active=True)
+        applied.append(rule_id)
+
+    return new_content, applied

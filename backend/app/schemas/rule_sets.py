@@ -18,6 +18,12 @@ class RuleSetOut(BaseModel):
     created_at: datetime
     file_count: int
     rule_count: int
+    # Only ever non-empty in the response of an import endpoint - rule IDs
+    # of tunables whose value was automatically carried over from another
+    # already-tuned setup file (same id + same variable names) onto this
+    # newly imported one. See importer.py's _carry_over_crs_tuning. Always
+    # [] on a plain GET/list, no point recomputing it after the fact.
+    carried_over_tunables: list[str] = []
 
     class Config:
         from_attributes = True
@@ -33,6 +39,7 @@ class RuleFileOut(BaseModel):
     rule_count: int
     created_at: datetime
     updated_at: datetime
+    warnings: list["TxVarWarningOut"] = []
 
     class Config:
         from_attributes = True
@@ -42,6 +49,42 @@ class RuleFileContentOut(BaseModel):
     id: int
     filename: str
     content: str
+
+
+class TunableFixOut(BaseModel):
+    rule_set_id: int
+    rule_set_name: str
+    tunable_rule_id: str
+    variables: dict[str, str]
+    is_new: bool = False
+    init_collection: str | None = None
+
+
+class TxVarWarningOut(BaseModel):
+    variable: str
+    rule_id: str | None
+    snippet: str
+    fix: TunableFixOut | None = None
+    kind: str = "undefined_var"
+
+
+class RuleFileVersionOut(BaseModel):
+    id: int
+    created_at: datetime
+    content: str
+    size_bytes: int
+
+    class Config:
+        from_attributes = True
+
+
+class LintRequest(BaseModel):
+    content: str
+    rule_file_id: int | None = None
+
+
+class LintResult(BaseModel):
+    warnings: list[TxVarWarningOut]
 
 
 class RuleOut(BaseModel):
@@ -117,6 +160,39 @@ class TunableGroupUpdate(BaseModel):
             if re.search(r'["\n\r,]', value):
                 raise ValueError(f"Value for {name} may not contain quotes, commas, or newlines")
         return v
+
+
+class TunableGroupCreate(BaseModel):
+    """For adding a brand-new tunable block (Base Tuning, via the lint
+    warning's "add it" fix) rather than editing an existing one - see
+    tunable_scanner.add_tunable(). Same injection guard as
+    TunableGroupUpdate since these values land in the same setvar:tx.X=
+    slot either way."""
+
+    rule_id: str = Field(pattern=r"^[0-9]+$", max_length=10)
+    phase: int = Field(default=1, ge=1, le=5)
+    variables: dict[str, str] = Field(max_length=20, min_length=1)
+
+    @field_validator("variables")
+    @classmethod
+    def validate_variables(cls, v: dict[str, str]) -> dict[str, str]:
+        for name, value in v.items():
+            if not re.fullmatch(r"[A-Za-z0-9_]+", name):
+                raise ValueError(f"Invalid variable name: {name}")
+            if re.search(r'["\n\r,]', value):
+                raise ValueError(f"Value for {name} may not contain quotes, commas, or newlines")
+        return v
+
+
+class InitCollectionRequest(BaseModel):
+    """For the "uninitialized_collection" lint fix - appends
+    initcol:<collection>=%{REMOTE_ADDR} as a new SecAction. collection is
+    restricted to ModSecurity's own three persistent-collection names
+    (ip/session/user) - anything else can't be a real initcol target."""
+
+    rule_id: str = Field(pattern=r"^[0-9]+$", max_length=10)
+    collection: str = Field(pattern=r"^(ip|session|user)$")
+    phase: int = Field(default=1, ge=1, le=5)
 
 
 class CrsTuningUpdate(BaseModel):

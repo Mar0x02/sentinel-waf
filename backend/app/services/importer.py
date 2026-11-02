@@ -11,10 +11,18 @@ import httpx
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.models import FileKind, Rule, RuleFile, RuleSet, SourceType
+from app.default_base_tuning import DEFAULT_BASE_TUNING_CONFIG
+from app.models import FileKind, Rule, RuleFile, RuleFileVersion, RuleSet, SourceType
+from app.services import tunable_scanner
 from app.services.rule_parser import parse_rules
 
 CUSTOM_RULE_SET_SLUG = "custom"
+# Standalone, CRS-independent anomaly-scoring scaffold - see
+# app/default_base_tuning.py. Seeded once at startup like the custom rule
+# set, never deletable (see api/rule_sets.py's delete_rule_set), and
+# rendered into zzz-overrides/ rather than its own directory slot - see
+# render_service.render_rules().
+BASE_TUNING_RULE_SET_SLUG = "base-tuning"
 
 
 class ImportError_(Exception):
@@ -170,7 +178,41 @@ def _fetch_public_url(url: str, *, max_redirects: int = 5) -> bytes:
     raise ImportError_("Too many redirects")
 
 
-def import_from_url(db: Session, *, name: str, url: str, version: str | None = None) -> RuleSet:
+def _carry_over_crs_tuning(db: Session, new_rule_set: RuleSet) -> list[str]:
+    """After importing a new rule set, if it has a setup file (e.g.
+    crs-setup.conf) and some OTHER existing rule set also has one with
+    active tunables, copy forward whatever matches exactly - see
+    tunable_scanner.carry_over_tunables. Picks the most recently created
+    other rule set with a setup file as the source; if that happens to be
+    a different CRS major version (or an unrelated vendor), mismatched
+    tunables are simply skipped there, never misapplied.
+
+    Reuses update_custom_rule_file() for the actual write so this gets the
+    same version-snapshot-before-overwrite behavior as any other setup
+    file edit (see models.RuleFileVersion) - the as-imported pristine
+    content is never lost, just one History-panel revert away.
+    """
+    new_setup = next((f for f in new_rule_set.files if f.file_kind == FileKind.setup), None)
+    if new_setup is None:
+        return []
+
+    source_file = (
+        db.query(RuleFile)
+        .join(RuleSet, RuleFile.rule_set_id == RuleSet.id)
+        .filter(RuleFile.file_kind == FileKind.setup, RuleSet.id != new_rule_set.id)
+        .order_by(RuleSet.created_at.desc())
+        .first()
+    )
+    if source_file is None:
+        return []
+
+    merged_content, applied = tunable_scanner.carry_over_tunables(source_file.content, new_setup.content)
+    if applied:
+        update_custom_rule_file(db, new_setup, merged_content)
+    return applied
+
+
+def import_from_url(db: Session, *, name: str, url: str, version: str | None = None) -> tuple[RuleSet, list[str]]:
     try:
         content = _fetch_public_url(url)
     except httpx.HTTPError as e:
@@ -215,7 +257,8 @@ def import_from_url(db: Session, *, name: str, url: str, version: str | None = N
 
     db.commit()
     db.refresh(rule_set)
-    return rule_set
+    carried_over = _carry_over_crs_tuning(db, rule_set)
+    return rule_set, carried_over
 
 
 def ensure_custom_rule_set(db: Session) -> RuleSet:
@@ -229,6 +272,41 @@ def ensure_custom_rule_set(db: Session) -> RuleSet:
         order_seq=_next_order_seq(db),
     )
     db.add(rule_set)
+    db.commit()
+    db.refresh(rule_set)
+    return rule_set
+
+
+def ensure_base_tuning_rule_set(db: Session) -> RuleSet:
+    existing = db.query(RuleSet).filter(RuleSet.slug == BASE_TUNING_RULE_SET_SLUG).first()
+    if existing:
+        return existing
+    rule_set = RuleSet(
+        name="Base Tuning",
+        slug=BASE_TUNING_RULE_SET_SLUG,
+        source_type=SourceType.custom,
+        order_seq=_next_order_seq(db),
+    )
+    db.add(rule_set)
+    db.flush()
+    rule_file = RuleFile(
+        rule_set_id=rule_set.id,
+        filename="base-tuning.conf",
+        content=DEFAULT_BASE_TUNING_CONFIG,
+        file_kind=FileKind.setup,
+    )
+    db.add(rule_file)
+    db.flush()
+    for parsed in parse_rules(DEFAULT_BASE_TUNING_CONFIG):
+        db.add(
+            Rule(
+                rule_file_id=rule_file.id,
+                rule_id=parsed.rule_id,
+                message=parsed.message,
+                raw_snippet=parsed.raw_snippet,
+                order_index=parsed.order_index,
+            )
+        )
     db.commit()
     db.refresh(rule_set)
     return rule_set
@@ -254,6 +332,14 @@ def create_custom_rule_file(db: Session, *, filename: str, content: str) -> Rule
 
 
 def update_custom_rule_file(db: Session, rule_file: RuleFile, content: str) -> RuleFile:
+    # Snapshot the pre-change content for setup files (e.g. crs-setup.conf)
+    # so it can be reverted later - see models.RuleFileVersion. This is the
+    # one function CRS Tuning, the generic Tunables panel, and raw edit all
+    # funnel through, so it's the single place this needs to live. Plain
+    # rule files are never snapshotted (not the scope of the revert
+    # feature, and they're mostly read-only anyway).
+    if rule_file.file_kind == FileKind.setup and content != rule_file.content:
+        db.add(RuleFileVersion(rule_file_id=rule_file.id, content=rule_file.content))
     rule_file.content = content
     db.flush()
     _reparse_rules(db, rule_file)

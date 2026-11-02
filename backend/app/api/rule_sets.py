@@ -6,7 +6,7 @@ from app.auth import require_write_access
 from app.catalog import CRS_CATALOG, CatalogEntry, get_catalog_entry
 from app.config import Settings, get_settings
 from app.db import get_db
-from app.models import FileKind, Rule, RuleFile, RuleSet
+from app.models import FileKind, Rule, RuleFile, RuleFileVersion, RuleSet
 from app.schemas.rule_sets import (
     CrsTuningOut,
     CrsTuningUpdate,
@@ -15,14 +15,21 @@ from app.schemas.rule_sets import (
     EnabledPatch,
     ImportFromCatalogRequest,
     ImportFromUrlRequest,
+    InitCollectionRequest,
+    LintRequest,
+    LintResult,
     RuleFileContentOut,
     RuleFileOut,
+    RuleFileVersionOut,
     RuleOut,
     RuleSetOut,
+    TunableFixOut,
+    TunableGroupCreate,
     TunableGroupOut,
     TunableGroupUpdate,
+    TxVarWarningOut,
 )
-from app.services import crs_tuning, importer, render_service, tunable_scanner
+from app.services import crs_tuning, importer, render_service, tunable_scanner, tx_var_linter
 from app.services.importer import CUSTOM_RULE_SET_SLUG
 
 # Rule IDs already covered by the dedicated paranoia/anomaly form
@@ -34,7 +41,7 @@ _EXCLUDED_TUNABLE_IDS = {"900000", "900001", "900110", "900990"}
 router = APIRouter(prefix="/api", tags=["rules"])
 
 
-def _rule_set_out(db: Session, rule_set: RuleSet) -> RuleSetOut:
+def _rule_set_out(db: Session, rule_set: RuleSet, carried_over_tunables: list[str] | None = None) -> RuleSetOut:
     file_count = db.query(func.count(RuleFile.id)).filter(RuleFile.rule_set_id == rule_set.id).scalar()
     rule_count = (
         db.query(func.count(Rule.id))
@@ -54,10 +61,11 @@ def _rule_set_out(db: Session, rule_set: RuleSet) -> RuleSetOut:
         created_at=rule_set.created_at,
         file_count=file_count or 0,
         rule_count=rule_count or 0,
+        carried_over_tunables=carried_over_tunables or [],
     )
 
 
-def _rule_file_out(db: Session, rule_file: RuleFile) -> RuleFileOut:
+def _rule_file_out(db: Session, rule_file: RuleFile, warnings: list[TxVarWarningOut] | None = None) -> RuleFileOut:
     rule_count = db.query(func.count(Rule.id)).filter(Rule.rule_file_id == rule_file.id).scalar()
     return RuleFileOut(
         id=rule_file.id,
@@ -69,7 +77,35 @@ def _rule_file_out(db: Session, rule_file: RuleFile) -> RuleFileOut:
         rule_count=rule_count or 0,
         created_at=rule_file.created_at,
         updated_at=rule_file.updated_at,
+        warnings=warnings or [],
     )
+
+
+def _lint(db: Session, content: str, exclude_rule_file_id: int | None = None) -> list[TxVarWarningOut]:
+    checks = (
+        tx_var_linter.lint_tx_vars(db, content, exclude_rule_file_id=exclude_rule_file_id)
+        + tx_var_linter.lint_collection_init(db, content, exclude_rule_file_id=exclude_rule_file_id)
+        + tx_var_linter.lint_unused_counters(db, content, exclude_rule_file_id=exclude_rule_file_id)
+    )
+    return [
+        TxVarWarningOut(
+            variable=w.variable,
+            rule_id=w.rule_id,
+            snippet=w.snippet,
+            kind=w.kind,
+            fix=TunableFixOut(
+                rule_set_id=w.fix.rule_set_id,
+                rule_set_name=w.fix.rule_set_name,
+                tunable_rule_id=w.fix.tunable_rule_id,
+                variables=w.fix.variables,
+                is_new=w.fix.is_new,
+                init_collection=w.fix.init_collection,
+            )
+            if w.fix
+            else None,
+        )
+        for w in checks
+    ]
 
 
 def _rerender(db: Session, settings: Settings) -> None:
@@ -87,6 +123,14 @@ def list_rule_sets(db: Session = Depends(get_db)):
     return [_rule_set_out(db, rs) for rs in rule_sets]
 
 
+@router.get("/rule-sets/{rule_set_id}", response_model=RuleSetOut)
+def get_rule_set(rule_set_id: int, db: Session = Depends(get_db)):
+    rule_set = db.get(RuleSet, rule_set_id)
+    if rule_set is None:
+        raise HTTPException(404, "Rule set not found")
+    return _rule_set_out(db, rule_set)
+
+
 @router.post("/rule-sets/import-catalog", response_model=RuleSetOut, status_code=201)
 def import_catalog(
     payload: ImportFromCatalogRequest,
@@ -98,11 +142,11 @@ def import_catalog(
     if entry is None:
         raise HTTPException(404, f"Unknown catalog entry '{payload.catalog_id}'")
     try:
-        rule_set = importer.import_from_url(db, name=entry.name, url=entry.url, version=entry.version)
+        rule_set, carried_over = importer.import_from_url(db, name=entry.name, url=entry.url, version=entry.version)
     except importer.ImportError_ as e:
         raise HTTPException(400, str(e))
     _rerender(db, settings)
-    return _rule_set_out(db, rule_set)
+    return _rule_set_out(db, rule_set, carried_over)
 
 
 @router.post("/rule-sets/import-url", response_model=RuleSetOut, status_code=201)
@@ -113,11 +157,11 @@ def import_url(
     _=Depends(require_write_access),
 ):
     try:
-        rule_set = importer.import_from_url(db, name=payload.name, url=payload.url, version=payload.version)
+        rule_set, carried_over = importer.import_from_url(db, name=payload.name, url=payload.url, version=payload.version)
     except importer.ImportError_ as e:
         raise HTTPException(400, str(e))
     _rerender(db, settings)
-    return _rule_set_out(db, rule_set)
+    return _rule_set_out(db, rule_set, carried_over)
 
 
 @router.patch("/rule-sets/{rule_set_id}", response_model=RuleSetOut)
@@ -147,11 +191,40 @@ def delete_rule_set(
     rule_set = db.get(RuleSet, rule_set_id)
     if rule_set is None:
         raise HTTPException(404, "Rule set not found")
-    if rule_set.slug == CUSTOM_RULE_SET_SLUG:
-        raise HTTPException(400, "The custom rule set can't be deleted")
+    if rule_set.slug in (CUSTOM_RULE_SET_SLUG, importer.BASE_TUNING_RULE_SET_SLUG):
+        raise HTTPException(400, "This rule set can't be deleted")
     db.delete(rule_set)
     db.commit()
     _rerender(db, settings)
+
+
+@router.post("/rule-sets/{rule_set_id}/sync-from-base-tuning", response_model=list[str])
+def sync_from_base_tuning(
+    rule_set_id: int,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    _=Depends(require_write_access),
+):
+    """Copies Base Tuning's active tunable values onto this (typically an
+    imported CRS) rule set's own setup file, wherever the id and variable
+    names match exactly - same matching rule as the import-time carry-over
+    (tunable_scanner.carry_over_tunables), just triggered on demand here
+    instead of automatically at import time, and in the reverse direction
+    (Base Tuning -> this rule set, rather than old rule set -> newly
+    imported one). Goes through update_custom_rule_file so this creates a
+    new version snapshot - the pristine imported content stays one revert
+    away, never overwritten destructively.
+    """
+    base_tuning = db.query(RuleSet).filter(RuleSet.slug == importer.BASE_TUNING_RULE_SET_SLUG).first()
+    if base_tuning is None or rule_set_id == base_tuning.id:
+        raise HTTPException(400, "Base Tuning can't sync from itself")
+    target_setup = _get_setup_file(db, rule_set_id)
+    base_tuning_setup = _get_setup_file(db, base_tuning.id)
+    merged_content, applied = tunable_scanner.sync_from_source(base_tuning_setup.content, target_setup.content)
+    if applied:
+        importer.update_custom_rule_file(db, target_setup, merged_content)
+        _rerender(db, settings)
+    return applied
 
 
 @router.get("/rule-sets/{rule_set_id}/files", response_model=list[RuleFileOut])
@@ -159,7 +232,12 @@ def list_rule_files(rule_set_id: int, db: Session = Depends(get_db)):
     rule_set = db.get(RuleSet, rule_set_id)
     if rule_set is None:
         raise HTTPException(404, "Rule set not found")
-    return [_rule_file_out(db, rf) for rf in rule_set.files]
+    # Lint every file here too, not just the raw-edit save path - this is
+    # what feeds the Rules page's "View rules" modal, which previously
+    # always showed warnings: [] regardless of whether a rule actually
+    # referenced an undefined tx.* var (caught via a real custom rule that
+    # referenced a still-commented-out CRS tunable).
+    return [_rule_file_out(db, rf, warnings=_lint(db, rf.content, exclude_rule_file_id=rf.id)) for rf in rule_set.files]
 
 
 def _get_setup_file(db: Session, rule_set_id: int) -> RuleFile:
@@ -233,6 +311,64 @@ def update_tunable(
     return TunableGroupOut(**vars(updated))
 
 
+@router.post("/rule-sets/{rule_set_id}/tunables", response_model=TunableGroupOut, status_code=201)
+def create_tunable(
+    rule_set_id: int,
+    payload: TunableGroupCreate,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    _=Depends(require_write_access),
+):
+    """Appends a brand-new tunable block - used by the lint warning's
+    "add it" fix (see tx_var_linter.py) when no existing tunable anywhere
+    already defines the referenced var, so there's nothing for the PUT
+    endpoint above to activate."""
+    setup_file = _get_setup_file(db, rule_set_id)
+    existing_ids = {g.rule_id for g in tunable_scanner.scan_tunables(setup_file.content)}
+    if payload.rule_id in existing_ids:
+        raise HTTPException(409, f"id:{payload.rule_id} already exists in this setup file")
+    new_content = tunable_scanner.add_tunable(setup_file.content, payload.rule_id, payload.variables, payload.phase)
+    importer.update_custom_rule_file(db, setup_file, new_content)
+    _rerender(db, settings)
+    groups = tunable_scanner.scan_tunables(new_content, exclude_rule_ids=set())
+    created = next(g for g in groups if g.rule_id == payload.rule_id)
+    return TunableGroupOut(**vars(created))
+
+
+@router.post("/rule-sets/{rule_set_id}/init-collection", response_model=TunableGroupOut, status_code=201)
+def init_collection(
+    rule_set_id: int,
+    payload: InitCollectionRequest,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    _=Depends(require_write_access),
+):
+    """Appends initcol:<collection>=%{REMOTE_ADDR} - used by the lint
+    warning's fix for "uninitialized_collection" (see tx_var_linter.py).
+    Not a setvar:tx.X=Y tunable, so this doesn't go through create_tunable
+    above - add_raw_action() builds the block instead. Doesn't re-derive
+    the response via scan_tunables() like create_tunable does, because
+    scan_tunables only recognizes blocks containing a setvar:tx.* (see its
+    _SETVAR_RE) - an initcol-only block would never match and this would
+    404 on its own output.
+    """
+    setup_file = _get_setup_file(db, rule_set_id)
+    existing_ids = {g.rule_id for g in tunable_scanner.scan_tunables(setup_file.content)}
+    if payload.rule_id in existing_ids:
+        raise HTTPException(409, f"id:{payload.rule_id} already exists in this setup file")
+    new_content = tunable_scanner.add_raw_action(
+        setup_file.content, payload.rule_id, payload.phase, [f"initcol:{payload.collection}=%{{REMOTE_ADDR}}"]
+    )
+    importer.update_custom_rule_file(db, setup_file, new_content)
+    _rerender(db, settings)
+    return TunableGroupOut(
+        rule_id=payload.rule_id,
+        description=f"initcol:{payload.collection}",
+        is_active=True,
+        variables={},
+    )
+
+
 @router.post("/rule-files", response_model=RuleFileOut, status_code=201)
 def create_rule_file(
     payload: CustomRuleFileCreate,
@@ -245,7 +381,17 @@ def create_rule_file(
     except importer.ImportError_ as e:
         raise HTTPException(409, str(e))
     _rerender(db, settings)
-    return _rule_file_out(db, rule_file)
+    warnings = _lint(db, rule_file.content, exclude_rule_file_id=rule_file.id)
+    return _rule_file_out(db, rule_file, warnings)
+
+
+@router.post("/rule-files/lint", response_model=LintResult)
+def lint_rule_file(payload: LintRequest, db: Session = Depends(get_db)):
+    """Advisory-only check, never blocks a save - see
+    app.services.tx_var_linter's module docstring. Lets the editor warn
+    about an undefined tx.* reference before the user even hits Save,
+    not just after."""
+    return LintResult(warnings=_lint(db, payload.content, exclude_rule_file_id=payload.rule_file_id))
 
 
 @router.get("/rule-files/{rule_file_id}", response_model=RuleFileContentOut)
@@ -279,7 +425,8 @@ def update_rule_file(
         )
     rule_file = importer.update_custom_rule_file(db, rule_file, payload.content)
     _rerender(db, settings)
-    return _rule_file_out(db, rule_file)
+    warnings = _lint(db, rule_file.content, exclude_rule_file_id=rule_file.id)
+    return _rule_file_out(db, rule_file, warnings)
 
 
 @router.patch("/rule-files/{rule_file_id}", response_model=RuleFileOut)
@@ -314,6 +461,46 @@ def delete_rule_file(
     db.delete(rule_file)
     db.commit()
     _rerender(db, settings)
+
+
+@router.get("/rule-files/{rule_file_id}/versions", response_model=list[RuleFileVersionOut])
+def list_rule_file_versions(rule_file_id: int, db: Session = Depends(get_db)):
+    rule_file = db.get(RuleFile, rule_file_id)
+    if rule_file is None:
+        raise HTTPException(404, "Rule file not found")
+    versions = (
+        db.query(RuleFileVersion)
+        .filter(RuleFileVersion.rule_file_id == rule_file_id)
+        .order_by(RuleFileVersion.created_at.desc())
+        .all()
+    )
+    return [
+        RuleFileVersionOut(id=v.id, created_at=v.created_at, content=v.content, size_bytes=len(v.content.encode()))
+        for v in versions
+    ]
+
+
+@router.post("/rule-files/{rule_file_id}/versions/{version_id}/revert", response_model=RuleFileOut)
+def revert_rule_file(
+    rule_file_id: int,
+    version_id: int,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    _=Depends(require_write_access),
+):
+    rule_file = db.get(RuleFile, rule_file_id)
+    if rule_file is None:
+        raise HTTPException(404, "Rule file not found")
+    version = db.get(RuleFileVersion, version_id)
+    if version is None or version.rule_file_id != rule_file_id:
+        raise HTTPException(404, "Version not found")
+    # Goes through the same snapshot-on-write hook as every other save, so
+    # the content being replaced here is itself saved as a new version
+    # first - a revert is always itself undoable.
+    rule_file = importer.update_custom_rule_file(db, rule_file, version.content)
+    _rerender(db, settings)
+    warnings = _lint(db, rule_file.content, exclude_rule_file_id=rule_file.id)
+    return _rule_file_out(db, rule_file, warnings)
 
 
 @router.get("/rules", response_model=list[RuleOut])

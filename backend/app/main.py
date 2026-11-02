@@ -45,6 +45,7 @@ def on_startup():
     try:
         ensure_admin_seeded(db)
         importer.ensure_custom_rule_set(db)
+        importer.ensure_base_tuning_rule_set(db)
         render_service.render_all(db, settings)
     finally:
         db.close()
