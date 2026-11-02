@@ -1,3 +1,4 @@
+import { KeyRound, Loader2, ShieldCheck, User } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -25,19 +26,39 @@ export function LoginPage() {
 
   return (
     <div className="login-shell">
+      <div className="login-glow" />
       <form className="login-card" onSubmit={submit}>
-        <h1>{t("nav.brand")}</h1>
-        <h2>{t("auth.loginTitle")}</h2>
+        <div className="login-brand">
+          <div className="login-brand-icon">
+            <ShieldCheck size={26} strokeWidth={2} />
+          </div>
+          <h1>{t("nav.brand")}</h1>
+          <p className="login-tagline">{t("auth.loginTitle")}</p>
+        </div>
+
         {error && <p className="login-error">{error}</p>}
+
         <label>
           {t("auth.username")}
-          <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
+          <div className="login-input-wrap">
+            <User size={15} />
+            <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus autoComplete="username" />
+          </div>
         </label>
         <label>
           {t("auth.password")}
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <div className="login-input-wrap">
+            <KeyRound size={15} />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+            />
+          </div>
         </label>
-        <button className="btn btn-primary" type="submit" disabled={busy}>
+        <button className="btn btn-primary login-submit" type="submit" disabled={busy}>
+          {busy && <Loader2 size={15} className="login-spinner" />}
           {t("auth.loginButton")}
         </button>
       </form>
