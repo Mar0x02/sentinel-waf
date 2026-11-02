@@ -62,6 +62,17 @@ export function Nav() {
             </button>
           </div>
         )}
+
+        <a
+          className="nav-credit"
+          href="https://github.com/Mar0x02/sentinel-waf"
+          target="_blank"
+          rel="noreferrer"
+          title="Mar0x02/sentinel-waf"
+        >
+          <ShieldCheck size={13} strokeWidth={2} />
+          <span>Mar0x02/sentinel-waf</span>
+        </a>
       </div>
     </nav>
   );
