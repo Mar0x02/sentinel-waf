@@ -20,6 +20,31 @@ export interface RuleSet {
   created_at: string;
   file_count: number;
   rule_count: number;
+  carried_over_tunables: string[];
+}
+
+export interface TunableFix {
+  rule_set_id: number;
+  rule_set_name: string;
+  tunable_rule_id: string;
+  variables: Record<string, string>;
+  is_new: boolean;
+  init_collection: string | null;
+}
+
+export interface TxVarWarning {
+  variable: string;
+  rule_id: string | null;
+  snippet: string;
+  fix: TunableFix | null;
+  kind: "undefined_var" | "uninitialized_collection" | "unused_counter";
+}
+
+export interface RuleFileVersion {
+  id: number;
+  created_at: string;
+  content: string;
+  size_bytes: number;
 }
 
 export interface RuleFile {
@@ -32,6 +57,7 @@ export interface RuleFile {
   rule_count: number;
   created_at: string;
   updated_at: string;
+  warnings: TxVarWarning[];
 }
 
 export interface RuleRow {
@@ -67,6 +93,34 @@ export interface Site {
   enabled: boolean;
   created_at: string;
   updated_at: string;
+  tls_enabled: boolean;
+  tls_listen_port: number;
+  has_cert: boolean;
+  cert_expires_at: string | null;
+  rate_limit_enabled: boolean;
+  rate_limit_rps: number;
+  rate_limit_burst: number;
+  conn_limit_enabled: boolean;
+  conn_limit_per_ip: number;
+}
+
+export interface SitePayload {
+  name: string;
+  domain: string;
+  upstream_url: string;
+  listen_port: number;
+  tls_enabled: boolean;
+  tls_listen_port: number;
+  // Omitted (undefined) on an update means "keep the currently stored
+  // cert" - see backend/app/api/sites.py. Always required together on
+  // create.
+  tls_cert?: string;
+  tls_key?: string;
+  rate_limit_enabled: boolean;
+  rate_limit_rps: number;
+  rate_limit_burst: number;
+  conn_limit_enabled: boolean;
+  conn_limit_per_ip: number;
 }
 
 export interface LogSink {
@@ -145,6 +199,15 @@ export interface TrendPoint {
   bucket: string;
   total: number;
   blocked: number;
+}
+
+export interface CountryCount {
+  country_code: string;
+  country_name: string;
+  lat: number;
+  lng: number;
+  count: number;
+  blocked_count: number;
 }
 
 export const TOKEN_STORAGE_KEY = "sentinel-waf-token";
@@ -253,6 +316,7 @@ export const api = {
   // Rule sets / CRS catalog
   listCatalog: () => request<CatalogEntry[]>("/api/catalog"),
   listRuleSets: () => request<RuleSet[]>("/api/rule-sets"),
+  getRuleSet: (id: number) => request<RuleSet>(`/api/rule-sets/${id}`),
   importCatalog: (catalog_id: string) =>
     request<RuleSet>("/api/rule-sets/import-catalog", {
       method: "POST",
@@ -290,6 +354,14 @@ export const api = {
       body: JSON.stringify({ enabled }),
     }),
   deleteRuleFile: (id: number) => request<void>(`/api/rule-files/${id}`, { method: "DELETE" }),
+  lintRuleFile: (content: string, ruleFileId?: number) =>
+    request<{ warnings: TxVarWarning[] }>("/api/rule-files/lint", {
+      method: "POST",
+      body: JSON.stringify({ content, rule_file_id: ruleFileId ?? null }),
+    }),
+  listRuleFileVersions: (id: number) => request<RuleFileVersion[]>(`/api/rule-files/${id}/versions`),
+  revertRuleFile: (id: number, versionId: number) =>
+    request<RuleFile>(`/api/rule-files/${id}/versions/${versionId}/revert`, { method: "POST" }),
 
   // Individual rules
   listRules: (params: { rule_file_id?: number; rule_set_id?: number; search?: string; limit?: number }) => {
@@ -319,12 +391,31 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ is_active, variables }),
     }),
+  // Creates a brand-new tunable block (Base Tuning, via a lint warning's
+  // "add it" fix) - as opposed to updateTunable above, which only edits
+  // an existing one.
+  createTunable: (ruleSetId: number, ruleId: string, phase: number, variables: Record<string, string>) =>
+    request<TunableGroup>(`/api/rule-sets/${ruleSetId}/tunables`, {
+      method: "POST",
+      body: JSON.stringify({ rule_id: ruleId, phase, variables }),
+    }),
+  // Appends initcol:<collection>=%{REMOTE_ADDR} - the fix for a lint
+  // warning's "uninitialized_collection" kind.
+  initCollection: (ruleSetId: number, ruleId: string, collection: string, phase: number) =>
+    request<TunableGroup>(`/api/rule-sets/${ruleSetId}/init-collection`, {
+      method: "POST",
+      body: JSON.stringify({ rule_id: ruleId, collection, phase }),
+    }),
+  // Copies Base Tuning's active tunable values onto this rule set's own
+  // setup file wherever id+variable-names match - returns the rule ids
+  // that were actually applied.
+  syncFromBaseTuning: (ruleSetId: number) =>
+    request<string[]>(`/api/rule-sets/${ruleSetId}/sync-from-base-tuning`, { method: "POST" }),
 
   // Sites (reverse proxy)
   listSites: () => request<Site[]>("/api/sites"),
-  createSite: (site: Omit<Site, "id" | "enabled" | "created_at" | "updated_at">) =>
-    request<Site>("/api/sites", { method: "POST", body: JSON.stringify(site) }),
-  updateSite: (id: number, site: Omit<Site, "id" | "enabled" | "created_at" | "updated_at">) =>
+  createSite: (site: SitePayload) => request<Site>("/api/sites", { method: "POST", body: JSON.stringify(site) }),
+  updateSite: (id: number, site: SitePayload) =>
     request<Site>(`/api/sites/${id}`, { method: "PUT", body: JSON.stringify(site) }),
   toggleSite: (id: number, enabled: boolean) =>
     request<Site>(`/api/sites/${id}`, { method: "PATCH", body: JSON.stringify({ enabled }) }),
@@ -360,4 +451,5 @@ export const api = {
   statsTopRules: (limit = 10) => request<RuleCount[]>(`/api/stats/top-rules?limit=${limit}`),
   statsTopIps: (limit = 10) => request<IpCount[]>(`/api/stats/top-ips?limit=${limit}`),
   statsTrend: () => request<TrendPoint[]>("/api/stats/trend"),
+  statsCountries: (limit = 50) => request<CountryCount[]>(`/api/stats/countries?limit=${limit}`),
 };
