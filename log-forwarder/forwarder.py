@@ -121,7 +121,14 @@ def discord_payload(entries: list[dict]) -> dict:
 def send_discord(webhook: dict, payload: dict) -> None:
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
-        webhook["webhook_url"], data=data, headers={"Content-Type": "application/json"}, method="POST"
+        webhook["webhook_url"],
+        data=data,
+        # Cloudflare (fronting discord.com) returns 403 "error code: 1010"
+        # for urllib's default User-Agent (Python-urllib/3.x) - it's a
+        # known bot-fingerprint signature. A descriptive UA is all it
+        # takes to get past it; no browser impersonation needed.
+        headers={"Content-Type": "application/json", "User-Agent": "sentinel-waf-log-forwarder/1.0"},
+        method="POST",
     )
     try:
         with urllib.request.urlopen(req, timeout=5) as resp:
