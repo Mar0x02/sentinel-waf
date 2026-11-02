@@ -125,12 +125,43 @@ komunikasinya lewat Docker named volume yang di-share: backend menulis
 config hasil render, `waf-engine` memantau volume tersebut dan otomatis
 reload nginx saat ada perubahan.
 
+### Mode dev vs production
+
+Dua cara jalanin stack-nya, beda di jumlah port yang perlu dibuka buat
+akses dashboard - bukan beda kode, cuma beda cara di-build/di-serve:
+
+| | `docker-compose.yml` (default) | `docker-compose.prod.yml` |
+|---|---|---|
+| Frontend | Vite dev server | React di-build jadi static file, di-serve nginx |
+| Backend | expose port `8000` ke host | **tidak** expose ke host, cuma internal |
+| Port dashboard | `5173` (UI) + `8000` (API) terpisah | `80` doang, API-nya di-proxy nginx lewat `/api/*` |
+| Cocok buat | development/testing lokal | deploy ke VM/server sungguhan |
+
+Kalau dashboard-nya diakses dari mesin lain (bukan dari VM itu sendiri) -
+misal lab kamu pakai firewall kayak pfSense - mode production jauh lebih
+gampang: cuma **1 port** (`80`) yang perlu di-allow buat dashboard, bukan
+2 (`5173` dan `8000`). Port WAF traffic (`8080`/`8443`) tetap sama di
+kedua mode, itu jalur terpisah dari dashboard.
+
+Jalanin mode production:
+
+```bash
+./install.sh --prod
+# atau manual:
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Data (Postgres, rule, site, dst) **sama-sama kepake** di kedua mode kalau
+dijalanin di checkout yang sama - jadi bisa pindah dari dev ke production
+(atau sebaliknya) tanpa kehilangan data.
+
 ## Prasyarat
 
 - [Docker](https://docs.docker.com/get-docker/) dan Docker Compose v2
   (sudah dites dengan Docker 29.x / Compose v5.x)
-- Port `5173`, `8000`, `8080`, dan `8443` (kalau pakai HTTPS per-site)
-  tersedia di mesin kamu
+- Mode dev: port `5173`, `8000`, `8080`, dan `8443` (kalau pakai HTTPS
+  per-site) tersedia di mesin kamu. Mode production: cukup `80`, `8080`,
+  dan `8443`.
 - Koneksi internet (buat download image dasar + rule OWASP CRS saat import
   pertama kali)
 
@@ -151,6 +182,10 @@ cd sentinel-waf
 # langsung tampilkan username + password admin awal di terminal ini -
 # gak perlu command tambahan.
 ./install.sh
+
+# Deploy ke VM/server sungguhan (1 port buat dashboard, bukan 2) -
+# lihat "Mode dev vs production" di atas:
+./install.sh --prod
 ```
 
 `install.sh` itu cuma wrapper tipis di atas `docker compose up -d --build`
@@ -159,11 +194,16 @@ tetap jalan di background seperti biasa setelah installer selesai. Kalau
 mau jalanin manual tanpa installer: `docker compose up -d --build`, lalu
 `docker compose logs backend | grep -A5 "admin account created"`.
 
-Setelah itu buka:
+Setelah itu buka (mode dev):
 
 - **Dashboard**: `http://localhost:5173`
 - **Backend API**: `http://localhost:8000` (opsional, cuma kalau mau cek API langsung)
 - **WAF (jalur traffic)**: `http://localhost:8080` (HTTP) / `https://localhost:8443` (HTTPS per-site yang diaktifkan) - ini yang nantinya jadi tujuan trafik situs yang dilindungi
+
+Atau (mode production, `--prod`):
+
+- **Dashboard**: `http://localhost` (port 80, API sudah termasuk lewat proxy)
+- **WAF (jalur traffic)**: sama kayak di atas, `8080`/`8443`
 
 ### 2. Login pertama kali
 
@@ -240,6 +280,10 @@ dinyalain lagi dengan `docker compose up -d`, atau jalanin `./install.sh`
 lagi). Pakai `down -v` kalau mau bener-bener reset dari nol - abis itu
 jalanin `./install.sh` lagi buat install ulang dari kosong (dapat admin
 password baru lagi).
+
+Kalau lagi jalanin mode production, tambahin `-f docker-compose.prod.yml`
+di command-nya: `docker compose -f docker-compose.prod.yml down` (atau
+`down -v`).
 
 ## Team (kelola anggota & role)
 

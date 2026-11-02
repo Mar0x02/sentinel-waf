@@ -1,0 +1,110 @@
+# Production-style deployment: one host-exposed port for the dashboard
+# (80) instead of two (5173 dev-server + 8000 API). Frontend is built to
+# static files and served by nginx, which also reverse-proxies /api/* to
+# the backend over the internal Docker network - the backend itself is
+# never exposed to the host here. See frontend/Dockerfile.prod and
+# frontend/nginx.prod.conf.
+#
+# Standalone file, not an overlay on docker-compose.yml (the frontend and
+# backend service definitions differ too much - a different build/
+# Dockerfile for frontend, backend losing its ports: entirely - to merge
+# cleanly via `-f`). postgres/waf-engine/log-forwarder are identical to
+# the dev-mode file. Volume names match docker-compose.yml's on purpose,
+# so switching between dev and prod mode on the same checkout reuses the
+# same data (same default Compose project name, since both files live in
+# the same directory) - nothing is lost switching modes.
+#
+# Usage: docker compose -f docker-compose.prod.yml up -d --build
+# (or ./install.sh --prod)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: waf
+      POSTGRES_PASSWORD: waf
+      POSTGRES_DB: waf
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U waf"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      WAF_DATABASE_URL: postgresql+psycopg2://waf:waf@postgres:5432/waf
+      WAF_RULES_RENDER_DIR: /render/modsecurity-rules
+      WAF_SITES_RENDER_DIR: /render/nginx-sites
+      WAF_LOG_SINK_CONFIG_PATH: /render/log-sinks/log-sinks.json
+      WAF_DISCORD_WEBHOOK_CONFIG_PATH: /render/discord/webhooks.json
+      WAF_ERROR_PAGES_RENDER_DIR: /render/error-pages
+      WAF_ENGINE_SETTINGS_RENDER_DIR: /render/engine-settings
+      WAF_AUDIT_LOG_DIR: /data/logs
+      WAF_AUDIT_LOG_FORMAT: modsec_v3_json
+    volumes:
+      - rules-render:/render/modsecurity-rules
+      - sites-render:/render/nginx-sites
+      - log-sink-config:/render/log-sinks
+      - discord-config:/render/discord
+      - error-pages-render:/render/error-pages
+      - engine-settings-render:/render/engine-settings
+      - audit-logs:/data/logs:ro
+    # No host port here on purpose - only the frontend's nginx container
+    # (same Docker network) needs to reach this, via its service name.
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+  # The traffic path ("jalur") - nginx + ModSecurity v3 + whatever rules and
+  # sites the dashboard has rendered. See CLAUDE.md. Unchanged from dev mode -
+  # this is the WAF's own entrypoint, a separate concern from the dashboard.
+  waf-engine:
+    build: ./waf-engine
+    depends_on:
+      - backend
+    environment:
+      MODSEC_AUDIT_LOG: /var/log/modsecurity/audit/audit.log
+      MODSEC_AUDIT_LOG_FORMAT: JSON
+      MODSEC_AUDIT_LOG_TYPE: Serial
+    volumes:
+      - rules-render:/etc/modsecurity.d/dashboard-rules
+      - sites-render:/etc/nginx/conf.d/dashboard-sites
+      - error-pages-render:/usr/share/nginx/sentinel-error-pages
+      - engine-settings-render:/etc/modsecurity.d/dashboard-engine-settings
+      - audit-logs:/var/log/modsecurity/audit
+    ports:
+      - "8080:8080"
+      - "8443:8443"
+
+  log-forwarder:
+    build: ./log-forwarder
+    depends_on:
+      - backend
+    volumes:
+      - audit-logs:/data/logs:ro
+      - log-sink-config:/render/log-sinks:ro
+      - discord-config:/render/discord:ro
+      - log-forwarder-state:/state
+
+volumes:
+  pg-data:
+  rules-render:
+  sites-render:
+  log-sink-config:
+  discord-config:
+  error-pages-render:
+  engine-settings-render:
+  audit-logs:
+  log-forwarder-state:

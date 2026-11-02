@@ -1,14 +1,25 @@
-// Falls back to whatever host/protocol the browser actually used to load
-// the dashboard (port 8000, same as the backend's fixed docker-compose
-// port mapping) rather than hardcoding "localhost" - a hardcoded value
-// only works when the browser is on the same machine as the backend.
-// Confirmed broken in practice: opening the dashboard from a different
-// machine than the VM it's deployed on (by the VM's real IP/hostname)
-// sent every API call to "localhost:8000" on the *viewer's own machine*
-// instead of the VM, which has nothing listening there. VITE_API_BASE_URL
-// can still override this explicitly (e.g. behind a reverse proxy where
-// the API isn't on :8000) - see docker-compose.yml.
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? `${window.location.protocol}//${window.location.hostname}:8000`;
+// Dev mode (docker-compose.yml, Vite dev server): frontend and backend
+// are two separate host-exposed ports (5173/8000), so API calls need an
+// absolute URL. Falls back to whatever host/protocol the browser actually
+// used to load the dashboard rather than hardcoding "localhost" - a
+// hardcoded value only works when the browser is on the same machine as
+// the backend. Confirmed broken in practice: opening the dashboard from a
+// different machine than the VM it's deployed on (by the VM's real IP/
+// hostname) sent every API call to "localhost:8000" on the *viewer's own
+// machine* instead of the VM, which has nothing listening there.
+//
+// Production mode (docker-compose.prod.yml, see frontend/nginx.prod.conf):
+// import.meta.env.PROD is true (set by `vite build`), and nginx serves
+// the dashboard and proxies /api/* to the backend from the *same* origin
+// - no absolute URL needed at all, a relative "" prefix is correct and
+// also means this never breaks regardless of which host/IP the dashboard
+// is reached by.
+//
+// VITE_API_BASE_URL overrides either case explicitly if neither default
+// fits (e.g. a custom reverse-proxy layout).
+const BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ??
+  (import.meta.env.PROD ? "" : `${window.location.protocol}//${window.location.hostname}:8000`);
 
 export interface CatalogEntry {
   id: string;
