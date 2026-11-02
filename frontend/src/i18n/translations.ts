@@ -65,6 +65,8 @@ export const translations: Record<Lang, Record<string, string>> = {
 
     "dashboard.title": "Dashboard",
     "dashboard.loadError": "Failed to load dashboard: {error}",
+    "dashboard.noRulesWarning": "No rules are protecting your sites yet - the WAF is running but has nothing to block with.",
+    "dashboard.noRulesAction": "Import rules",
     "dashboard.totalRequests": "Total requests",
     "dashboard.blocked": "Blocked",
     "dashboard.detected": "Detected (not blocked)",
@@ -380,6 +382,8 @@ export const translations: Record<Lang, Record<string, string>> = {
 
     "dashboard.title": "Dashboard",
     "dashboard.loadError": "Gagal memuat dashboard: {error}",
+    "dashboard.noRulesWarning": "Belum ada rule yang ngelindungin site kamu - WAF-nya udah jalan tapi gak ada yang di-block.",
+    "dashboard.noRulesAction": "Import rules",
     "dashboard.totalRequests": "Total request",
     "dashboard.blocked": "Diblokir",
     "dashboard.detected": "Terdeteksi (tidak diblokir)",

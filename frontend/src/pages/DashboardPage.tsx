@@ -1,5 +1,7 @@
+import { AlertTriangle } from "lucide-react";
 import { useEffect, useState } from "react";
-import { api, IpCount, RuleCount, StatsSummary, TrendPoint } from "../api/client";
+import { Link } from "react-router-dom";
+import { api, IpCount, RuleCount, RuleSet, StatsSummary, TrendPoint } from "../api/client";
 import { LoadingInline } from "../components/LoadingShield";
 import { RequestGlobe } from "../components/RequestGlobe";
 import { StatTile } from "../components/StatTile";
@@ -35,6 +37,7 @@ export function DashboardPage() {
   const [topRules, setTopRules] = useState<RuleCount[]>([]);
   const [topIps, setTopIps] = useState<IpCount[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [ruleSets, setRuleSets] = useState<RuleSet[] | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -50,13 +53,30 @@ export function DashboardPage() {
         setTopIps(i);
       })
       .catch((e) => setError(String(e)));
+    api.listRuleSets().then(setRuleSets).catch(() => setRuleSets(null));
   }, []);
 
   if (error) return <p>{t("dashboard.loadError", { error })}</p>;
   if (!summary) return <LoadingInline />;
 
+  // Base Tuning is always present and never counts as "configured" on its
+  // own - a fresh install has zero active rules until something's
+  // imported/enabled on the Rules page (see CLAUDE.md). This banner is
+  // the UI-side nudge for that, gone the moment it's no longer true.
+  const noActiveRules =
+    ruleSets !== null && !ruleSets.some((rs) => rs.slug !== "base-tuning" && rs.enabled && rs.rule_count > 0);
+
   return (
     <div>
+      {noActiveRules && (
+        <div className="setup-banner">
+          <AlertTriangle size={18} />
+          <span>{t("dashboard.noRulesWarning")}</span>
+          <Link to="/rules" className="btn btn-primary">
+            {t("dashboard.noRulesAction")}
+          </Link>
+        </div>
+      )}
       <h2>{t("dashboard.title")}</h2>
       <div className="stat-row">
         <StatTile label={t("dashboard.totalRequests")} value={summary.total_requests} />
