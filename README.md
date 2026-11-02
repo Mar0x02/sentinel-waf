@@ -1,5 +1,7 @@
 # Sentinel WAF
 
+[![Mar0x02/sentinel-waf](https://img.shields.io/badge/Mar0x02-sentinel--waf-181717?style=flat&logo=github&logoColor=white)](https://github.com/Mar0x02/sentinel-waf)
+
 Dashboard manajemen WAF berbasis **ModSecurity** - bukan WAF baru dengan
 engine sendiri, tapi layer manajemen di atas ModSecurity yang bikin
 pengelolaannya semudah tool WAF komersial (gaya SafeLine): rule, reverse
@@ -121,16 +123,22 @@ reload nginx saat ada perubahan.
 - Koneksi internet (buat download image dasar + rule OWASP CRS saat import
   pertama kali)
 
-## Instalasi
+## Cara Pakai
+
+Alur lengkap dari nol: clone repo → jalankan → login → pakai dashboard →
+(kalau perlu) reset password atau hapus total. Tiap langkah di bawah bisa
+di-copy-paste langsung ke terminal.
+
+### 1. Clone & jalankan
 
 ```bash
-# 1. Clone repo ini
+# Clone repo ini
 git clone https://github.com/Mar0x02/sentinel-waf.git
 cd sentinel-waf
 
-# 2. Jalankan installer - build, start semua service di background,
-#    dan begitu backend siap, langsung tampilkan username + password
-#    admin awal di terminal ini (gak perlu command tambahan).
+# Build + start semua service di background, lalu begitu backend siap,
+# langsung tampilkan username + password admin awal di terminal ini -
+# gak perlu command tambahan.
 ./install.sh
 ```
 
@@ -146,7 +154,7 @@ Setelah itu buka:
 - **Backend API**: `http://localhost:8000` (opsional, cuma kalau mau cek API langsung)
 - **WAF (jalur traffic)**: `http://localhost:8080` (HTTP) / `https://localhost:8443` (HTTPS per-site yang diaktifkan) - ini yang nantinya jadi tujuan trafik situs yang dilindungi
 
-## Login pertama kali
+### 2. Login pertama kali
 
 Dashboard butuh login - **tidak ada password default yang bisa ditebak**.
 `install.sh` nampilin username + password admin itu langsung di terminal.
@@ -168,37 +176,7 @@ sebelum bisa lanjut pakai fitur lain.
 Akun pertama ini otomatis role **Admin**. Buat nambah anggota tim lain
 (dengan role Operator atau Viewer), lihat bagian **Team** di bawah.
 
-### Lupa password?
-
-```bash
-./reset-admin.sh            # reset akun "admin"
-./reset-admin.sh namauser   # reset akun user lain (berlaku buat role apa aja)
-```
-
-Password langsung di-generate ulang (random) dan ditampilkan sekali di
-terminal, mirip `./install.sh`. **Semua sesi login yang lagi aktif - buat
-semua user, bukan cuma yang di-reset - otomatis ke-logout** (jaga-jaga
-kalau reset-nya karena curiga ada yang akses tanpa izin). Login lagi pakai
-password baru itu, nanti diminta ganti lagi.
-
-## Team (kelola anggota & role)
-
-Tab **Team** (cuma keliatan buat user dengan role Admin) buat nambah,
-hapus, atau ubah role anggota tim:
-
-- **Admin** - full akses, termasuk kelola user lain dan log forwarding.
-- **Operator** - kelola Rules/Sites/Error Pages sehari-hari, **tidak**
-  bisa kelola user atau pengaturan log forwarding.
-- **Viewer** - read-only di semua halaman (Dashboard, Logs, Rules, Sites,
-  dst), gak bisa ubah apa-apa.
-
-Pas nambah user baru, Admin yang set password awalnya langsung (gak ada
-invite link via email) - user itu wajib ganti password sendiri pas login
-pertama. Admin juga bisa reset password teammate kapan aja dari tab ini
-(tombol **Reset password**) - sama efeknya kayak `./reset-admin.sh`, semua
-sesi login ke-logout.
-
-## Cara pakai
+### 3. Pakai dashboard
 
 Begitu login, dashboard masih **kosong rule custom** (sengaja - gak ada
 CRS otomatis ter-load dari image vendor, biar semua rule yang aktif
@@ -226,12 +204,48 @@ dan gak ngaruh ke traffic sampai ada custom rule yang benar-benar butuh.
 6. **Tab Settings** kalau mau meneruskan log ke syslog server eksternal
    (SIEM, dst) atau notifikasi Discord.
 
-## Menghentikan / membersihkan
+### 4. Reset password (lupa / curiga ada yang akses)
+
+```bash
+./reset-admin.sh            # reset akun "admin"
+./reset-admin.sh namauser   # reset akun user lain (berlaku buat role apa aja)
+```
+
+Password langsung di-generate ulang (random) dan ditampilkan sekali di
+terminal, mirip `./install.sh`. **Semua sesi login yang lagi aktif - buat
+semua user, bukan cuma yang di-reset - otomatis ke-logout** (jaga-jaga
+kalau reset-nya karena curiga ada yang akses tanpa izin). Login lagi pakai
+password baru itu, nanti diminta ganti lagi.
+
+### 5. Stop atau hapus total
 
 ```bash
 docker compose down        # stop semua container, data tetap tersimpan
-docker compose down -v     # stop + hapus semua data (rule, site, log, dst)
+docker compose down -v     # stop + hapus SEMUA data (rule, site, log, akun, dst)
 ```
+
+Pakai `down` biasa kalau cuma mau mematikan sementara (data tetap ada pas
+dinyalain lagi dengan `docker compose up -d`, atau jalanin `./install.sh`
+lagi). Pakai `down -v` kalau mau bener-bener reset dari nol - abis itu
+jalanin `./install.sh` lagi buat install ulang dari kosong (dapat admin
+password baru lagi).
+
+## Team (kelola anggota & role)
+
+Tab **Team** (cuma keliatan buat user dengan role Admin) buat nambah,
+hapus, atau ubah role anggota tim:
+
+- **Admin** - full akses, termasuk kelola user lain dan log forwarding.
+- **Operator** - kelola Rules/Sites/Error Pages sehari-hari, **tidak**
+  bisa kelola user atau pengaturan log forwarding.
+- **Viewer** - read-only di semua halaman (Dashboard, Logs, Rules, Sites,
+  dst), gak bisa ubah apa-apa.
+
+Pas nambah user baru, Admin yang set password awalnya langsung (gak ada
+invite link via email) - user itu wajib ganti password sendiri pas login
+pertama. Admin juga bisa reset password teammate kapan aja dari tab ini
+(tombol **Reset password**) - sama efeknya kayak `./reset-admin.sh`, semua
+sesi login ke-logout.
 
 ## Struktur folder
 
