@@ -3,12 +3,24 @@
 Dashboard manajemen WAF berbasis **ModSecurity** - bukan WAF baru dengan
 engine sendiri, tapi layer manajemen di atas ModSecurity yang bikin
 pengelolaannya semudah tool WAF komersial (gaya SafeLine): rule, reverse
-proxy, dan log semuanya diatur lewat dashboard web, bukan edit file
-`.conf` manual atau `docker exec` ke container.
+proxy, TLS, rate limiting, dan log semuanya diatur lewat dashboard web,
+bukan edit file `.conf` manual atau `docker exec` ke container.
 
 Semua state (rule set yang diimport, rule yang aktif/nonaktif, daftar site,
 tujuan forward log) tersimpan di **PostgreSQL**, bukan cuma file - jadi
 auditable dan gampang di-manage dari satu tempat.
+
+## Tujuan
+
+Proyek ini lahir dari kebutuhan lab pribadi: pengelolaan ModSecurity +
+OWASP CRS yang masih serba manual - edit `crs-setup.conf` langsung,
+`docker exec` ke container buat reload, nebak-nebak `tx.*` variable mana
+yang udah/belum di-set, dan sebagainya. Sentinel WAF dibuat supaya semua
+itu bisa dikerjakan dari satu dashboard web: import/tuning CRS tinggal
+klik, nulis custom rule dibantu validasi otomatis (dashboard ngecek sendiri
+kalau ada `tx.*`/collection variable yang kepake tapi belum didefinisikan,
+terus nawarin cara benerinnya), dan semua perubahan langsung diterapkan ke
+WAF tanpa perlu masuk ke container sama sekali.
 
 ## Fitur
 
@@ -26,22 +38,43 @@ auditable dan gampang di-manage dari satu tempat.
   `max_file_size`, `allowed_methods`, `restricted_extensions`, dst - ada
   ~22 di CRS) dan nampilin sebagai list yang bisa diaktifin/diedit
   langsung, gak perlu hardcode per-variable atau nulis syntax manual.
+- **Base Tuning (scoring mandiri, gak butuh CRS)** - rule set bawaan yang
+  selalu ada sejak awal deploy, independen dari CRS diimport atau nggak.
+  Nyediain mekanisme "akumulasi skor lalu block kalau lewat threshold"
+  yang sama kayak CRS, tapi bisa dipakai custom rule kamu sendiri. Isinya
+  minimal dari awal (cuma 1 nilai default yang aman) dan **tumbuh otomatis
+  sesuai kebutuhan** - begitu custom rule referensi variable yang belum
+  ada, dashboard nawarin nambahin otomatis (atau manual, pilihan kamu).
+- **Validasi otomatis buat custom rule** - tiap kali nyimpen custom rule,
+  dashboard ngecek 3 hal: (1) variable `tx.*` yang dipake tapi belum pernah
+  di-`setvar`, (2) collection `ip`/`session`/`user` yang dipake tapi belum
+  di-`initcol`, (3) counter yang di-increment tapi gak pernah dicek rule
+  manapun (jadi gak pernah ngaruh ke apa-apa). Tiap warning dikasih
+  tombol fix sekali klik kalau memungkinkan, atau bisa dibenerin manual.
 - **Reverse proxy (Sites)** - daftarkan domain + upstream backend dari
   dashboard, langsung jadi server block nginx yang otomatis dilindungi
   oleh rule yang aktif.
+- **HTTPS per-site (upload certificate manual)** - aktifkan HTTPS buat
+  site tertentu dengan upload certificate + private key sendiri (paste
+  langsung atau upload file `.crt`/`.key`). Port HTTP otomatis redirect
+  301 ke HTTPS begitu diaktifkan. Belum ada otomasi Let's Encrypt - lihat
+  bagian Keterbatasan.
+- **Rate limiting per-site** - batasi request/detik per IP (dengan burst
+  allowance) dan/atau jumlah koneksi bersamaan per IP, per site. Request
+  yang kelebihan dapat response `429` (pakai custom error page sendiri).
 - **Log forwarding** - audit log ModSecurity bisa diarahkan ke syslog
   server eksternal (SIEM, dst), selain tetap bisa dilihat langsung di
-  dashboard (trend serangan, top rule yang ke-trigger, top IP penyerang).
-  Tiap baris log di tab **Logs** bisa diklik buat liat detail lengkap:
-  host tujuan, User-Agent pengirim, dan semua rule yang cocok beserta
-  pesan/severity/tags/data-nya - gak cuma daftar rule ID doang.
+  dashboard (trend serangan, top rule yang ke-trigger, top IP penyerang,
+  globe interaktif asal-negara request). Tiap baris log di tab **Logs**
+  bisa diklik buat liat detail lengkap: host tujuan, User-Agent pengirim,
+  dan semua rule yang cocok beserta pesan/severity/tags/data-nya.
 - **Notifikasi Discord** - tiap request yang diblokir WAF langsung kekirim
   ke channel Discord (di-batch biar gak kena rate-limit webhook Discord
   pas lagi diserang rame). Atur dari tab Settings, khusus Admin. Cara
   dapet webhook URL: di Discord, Server Settings → Integrations →
   Webhooks → New Webhook, pilih channel-nya, copy URL-nya, paste di sini.
-- **Live reload otomatis** - perubahan rule atau site dari dashboard
-  langsung diterapkan ke container WAF tanpa restart manual.
+- **Live reload otomatis** - perubahan rule, site, TLS, atau rate limit
+  dari dashboard langsung diterapkan ke container WAF tanpa restart manual.
 - **Custom error pages** - halaman HTML yang ditampilkan untuk status 403
   (diblokir WAF), 429 (rate limited), 413 (payload kebesaran), dan 503
   (service unavailable) bisa diedit langsung dari dashboard, lengkap
@@ -57,10 +90,10 @@ auditable dan gampang di-manage dari satu tempat.
   dashboard (mode audit logging, limit ukuran body request/response, MIME
   type yang diperiksa) - gak perlu lagi ubah environment variable di
   `docker-compose.yml`. Khusus Admin, di tab **Settings**. Ada juga bagian
-  **Advanced** buat nulis directive ModSecurity mentah apa aja yang belum
-  ke-cover field biasa (misal `SecPcreMatchLimit`) - kalau syntax-nya
-  salah, WAF otomatis tetap pakai config lama (gak down), tinggal dicek &
-  diperbaiki.
+  **Advanced** (udah ada template directive umum, tinggal hapus `#` buat
+  aktifin) buat nulis directive ModSecurity mentah apa aja yang belum
+  ke-cover field biasa - kalau syntax-nya salah, WAF otomatis tetap pakai
+  config lama (gak down), tinggal dicek & diperbaiki.
 
 ## Arsitektur
 
@@ -83,7 +116,8 @@ reload nginx saat ada perubahan.
 
 - [Docker](https://docs.docker.com/get-docker/) dan Docker Compose v2
   (sudah dites dengan Docker 29.x / Compose v5.x)
-- Port `5173`, `8000`, dan `8080` tersedia di mesin kamu
+- Port `5173`, `8000`, `8080`, dan `8443` (kalau pakai HTTPS per-site)
+  tersedia di mesin kamu
 - Koneksi internet (buat download image dasar + rule OWASP CRS saat import
   pertama kali)
 
@@ -110,7 +144,7 @@ Setelah itu buka:
 
 - **Dashboard**: `http://localhost:5173`
 - **Backend API**: `http://localhost:8000` (opsional, cuma kalau mau cek API langsung)
-- **WAF (jalur traffic)**: `http://localhost:8080` (ini yang nantinya jadi tujuan trafik situs yang dilindungi)
+- **WAF (jalur traffic)**: `http://localhost:8080` (HTTP) / `https://localhost:8443` (HTTPS per-site yang diaktifkan) - ini yang nantinya jadi tujuan trafik situs yang dilindungi
 
 ## Login pertama kali
 
@@ -164,23 +198,33 @@ pertama. Admin juga bisa reset password teammate kapan aja dari tab ini
 (tombol **Reset password**) - sama efeknya kayak `./reset-admin.sh`, semua
 sesi login ke-logout.
 
-## Setup pertama kali
+## Cara pakai
 
-Begitu login, dashboard masih **kosong rule** (sengaja - gak ada CRS
-otomatis ter-load dari image vendor, biar semua rule yang aktif benar-benar
-tercatat lewat dashboard). Langkah-langkahnya:
+Begitu login, dashboard masih **kosong rule custom** (sengaja - gak ada
+CRS otomatis ter-load dari image vendor, biar semua rule yang aktif
+benar-benar tercatat lewat dashboard). Satu-satunya yang udah ada dari
+awal adalah rule set **Base Tuning** (lihat Fitur di atas), isinya minimal
+dan gak ngaruh ke traffic sampai ada custom rule yang benar-benar butuh.
 
-1. Tab **Rules** → import OWASP CRS versi terbaru dari daftar katalog
-   (tinggal klik "Import").
-2. Tab **Sites** → tambahkan domain + upstream backend aplikasi yang mau
+1. **Tab Rules** → import OWASP CRS versi terbaru dari daftar katalog
+   (tinggal klik "Import"), atau langsung mulai nulis custom rule sendiri
+   di rule set **Custom Rules**.
+2. Nulis custom rule yang referensi `tx.*`/`ip.*` variable yang belum
+   ada? Dashboard bakal nunjukin warning pas disimpan, lengkap sama
+   pilihan fix otomatis (klik) atau manual - gak perlu nebak-nebak sendiri
+   variable mana yang kurang.
+3. **Tab Sites** → tambahkan domain + upstream backend aplikasi yang mau
    dilindungi (misal `shop.example.com` → `http://app-backend:3000`).
-3. Arahkan trafik ke `http://localhost:8080` dengan header `Host` sesuai
-   domain yang didaftarkan di langkah 2 (atau setup DNS/reverse proxy di
-   depannya kalau mau diakses pakai domain asli).
-4. Tab **Logs** / **Dashboard** buat memantau request yang di-block atau
+   Di form yang sama bisa langsung aktifin **HTTPS** (upload cert+key) dan
+   **rate limiting** (request/detik + max koneksi per IP) kalau perlu.
+4. Arahkan trafik ke `http://localhost:8080` (atau `:8443` buat site yang
+   HTTPS-nya aktif) dengan header `Host` sesuai domain yang didaftarkan di
+   langkah 3 (atau setup DNS/reverse proxy di depannya kalau mau diakses
+   pakai domain asli).
+5. **Tab Logs** / **Dashboard** buat memantau request yang di-block atau
    terdeteksi mencurigakan.
-5. Tab **Settings** kalau mau meneruskan log ke syslog server eksternal
-   (SIEM, dst).
+6. **Tab Settings** kalau mau meneruskan log ke syslog server eksternal
+   (SIEM, dst) atau notifikasi Discord.
 
 ## Menghentikan / membersihkan
 
@@ -202,11 +246,22 @@ log-forwarder/     Sidecar kecil (Python stdlib) buat forward log ke syslog
 docker-compose.yml
 ```
 
-## Belum tersedia (keterbatasan saat ini)
+## Keterbatasan saat ini
 
-- TLS/HTTPS otomatis di Sites (HTTP-only untuk sekarang, cert manual belum ada UI-nya)
-- Mode WAF (enforce/detection) masih global, belum bisa per-site
-- Audit log belum di-ingest ke Postgres (dashboard baca langsung dari file log)
-- Log sink baru mendukung syslog (webhook/Elasticsearch belum ada)
-- Belum ada schema migration tool (Alembic) - skema dibuat otomatis saat startup
-- Dukungan Apache + mod_security2 belum diimplementasikan (baru ModSecurity v3/nginx)
+- **TLS otomatis (Let's Encrypt/ACME) belum ada** - HTTPS per-site baru
+  bisa lewat upload certificate manual (lihat Fitur di atas).
+- **Persistent collection ModSecurity (`ip`/`session`/`user`) tidak bisa
+  diandalkan** - dikonfirmasi lewat testing langsung (debug log + request
+  nyata) bahwa engine yang dipakai (`libmodsecurity3`/ModSecurity v3)
+  tidak benar-benar menyimpan collection ini lintas-request, walau
+  `initcol` sudah benar. Jadi pola "counter per-IP lintas request" (misal
+  lockout brute-force manual lewat rule) gak bisa dipakai di sini -
+  **pakai rate limiting per-site** (fitur di atas) buat kebutuhan serupa.
+- **Load balancing ke banyak upstream server per site belum ada** - satu
+  Site cuma bisa punya satu `upstream_url`.
+- Mode WAF (enforce/detection) masih global, belum bisa per-site.
+- Audit log belum di-ingest ke Postgres (dashboard baca langsung dari file log).
+- Log sink baru mendukung syslog (webhook/Elasticsearch belum ada).
+- Belum ada schema migration tool (Alembic) - skema dibuat otomatis saat
+  startup, perubahan kolom di tabel existing butuh `ALTER TABLE` manual.
+- Dukungan Apache + mod_security2 belum diimplementasikan (baru ModSecurity v3/nginx).
