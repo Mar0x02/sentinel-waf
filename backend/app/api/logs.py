@@ -14,6 +14,7 @@ def list_logs(
     severity: str | None = None,
     rule_id: str | None = None,
     client_ip: str | None = None,
+    category: str | None = None,
     blocked_only: bool = False,
     settings: Settings = Depends(get_settings),
 ):
@@ -24,6 +25,7 @@ def list_logs(
         severity=severity,
         rule_id=rule_id,
         client_ip=client_ip,
+        category=category,
         blocked_only=blocked_only,
     )
 

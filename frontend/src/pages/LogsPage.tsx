@@ -1,28 +1,42 @@
 import { Fragment, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { api, AuditLogEntry } from "../api/client";
+import { CATEGORY_COLORS } from "../components/CategoryTrendChart";
 import { useLanguage } from "../i18n/LanguageContext";
 
 export function LogsPage() {
   const { t } = useLanguage();
+  const [searchParams] = useSearchParams();
   const [items, setItems] = useState<AuditLogEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
-  const [ruleId, setRuleId] = useState("");
-  const [clientIp, setClientIp] = useState("");
+  // Pre-filled when arriving from a Dashboard "top rules"/"top IPs"/"top
+  // categories" link (e.g. /logs?rule_id=941100) - read once on mount, not
+  // kept in sync with further typing, same as every other filter here.
+  const [ruleId, setRuleId] = useState(() => searchParams.get("rule_id") ?? "");
+  const [clientIp, setClientIp] = useState(() => searchParams.get("client_ip") ?? "");
+  const [category, setCategory] = useState(() => searchParams.get("category") ?? "");
   const [blockedOnly, setBlockedOnly] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const limit = 25;
 
   useEffect(() => {
     api
-      .listLogs({ limit, offset, rule_id: ruleId || undefined, client_ip: clientIp || undefined, blocked_only: blockedOnly })
+      .listLogs({
+        limit,
+        offset,
+        rule_id: ruleId || undefined,
+        client_ip: clientIp || undefined,
+        category: category || undefined,
+        blocked_only: blockedOnly,
+      })
       .then((page) => {
         setItems(page.items);
         setTotal(page.total);
       })
       .catch((e) => toast.error(t("logs.loadError", { error: String(e) })));
-  }, [offset, ruleId, clientIp, blockedOnly]);
+  }, [offset, ruleId, clientIp, category, blockedOnly]);
 
   return (
     <div>
@@ -44,6 +58,21 @@ export function LogsPage() {
             setClientIp(e.target.value);
           }}
         />
+        <select
+          value={category}
+          onChange={(e) => {
+            setOffset(0);
+            setCategory(e.target.value);
+          }}
+        >
+          <option value="">{t("logs.filterCategoryAll")}</option>
+          {Object.keys(CATEGORY_COLORS).map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+          {category && !(category in CATEGORY_COLORS) && <option value={category}>{category}</option>}
+        </select>
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
           <input
             type="checkbox"

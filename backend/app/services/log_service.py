@@ -1,6 +1,7 @@
 from app.adapters import get_log_parser
 from app.config import Settings
 from app.schemas.logs import AuditLogEntry, AuditLogPage
+from app.services.attack_categories import match_category
 
 
 def load_entries(settings: Settings) -> list[AuditLogEntry]:
@@ -17,6 +18,7 @@ def query_entries(
     severity: str | None = None,
     rule_id: str | None = None,
     client_ip: str | None = None,
+    category: str | None = None,
     blocked_only: bool = False,
 ) -> AuditLogPage:
     entries = load_entries(settings)
@@ -27,6 +29,8 @@ def query_entries(
         entries = [e for e in entries if any(m.rule_id == rule_id for m in e.matches)]
     if client_ip:
         entries = [e for e in entries if e.client_ip == client_ip]
+    if category:
+        entries = [e for e in entries if any(category in match_category(m.tags) for m in e.matches)]
     if blocked_only:
         entries = [e for e in entries if e.blocked]
 
