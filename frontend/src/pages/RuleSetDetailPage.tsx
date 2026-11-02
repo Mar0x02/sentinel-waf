@@ -292,6 +292,8 @@ export function RuleSetDetailPage() {
     warnings: TxVarWarning[];
   } | null>(null);
   const [expandedRuleId, setExpandedRuleId] = useState<number | null>(null);
+  const [ruleSearch, setRuleSearch] = useState("");
+  const [searchingRule, setSearchingRule] = useState(false);
   const [newFilename, setNewFilename] = useState("");
   const [lintWarnings, setLintWarnings] = useState<TxVarWarning[]>([]);
   const [checkingSave, setCheckingSave] = useState(false);
@@ -439,6 +441,31 @@ export function RuleSetDetailPage() {
       toast.error(String(e));
     } finally {
       setCheckingSave(false);
+    }
+  }
+
+  async function searchRuleId() {
+    const query = ruleSearch.trim();
+    if (!query) return;
+    setSearchingRule(true);
+    try {
+      const matches = await api.listRules({ rule_set_id: id, search: query, limit: 5 });
+      if (matches.length === 0) {
+        toast.error(t("rules.searchNoResults", { query }));
+        return;
+      }
+      const match = matches[0];
+      const file = files.find((f) => f.id === match.rule_file_id);
+      if (!file) {
+        toast.error(t("rules.searchNoResults", { query }));
+        return;
+      }
+      await openRules(file);
+      setExpandedRuleId(match.id);
+    } catch (e) {
+      toast.error(String(e));
+    } finally {
+      setSearchingRule(false);
     }
   }
 
@@ -603,6 +630,21 @@ export function RuleSetDetailPage() {
             )}
           </div>
         </div>
+      </div>
+
+      <div className="card" style={{ display: "flex", gap: 8 }}>
+        <input
+          placeholder={t("rules.searchRuleIdPlaceholder")}
+          value={ruleSearch}
+          onChange={(e) => setRuleSearch(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") searchRuleId();
+          }}
+          style={{ flex: 1 }}
+        />
+        <button className="btn" onClick={searchRuleId} disabled={searchingRule}>
+          {searchingRule ? t("common.loading") : t("rules.searchRuleIdButton")}
+        </button>
       </div>
 
       {setupFile && (
