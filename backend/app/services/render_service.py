@@ -97,6 +97,16 @@ _PROXY_LOCATION = """    location / {{
         proxy_http_version 1.1;
         proxy_connect_timeout 60s;
         proxy_read_timeout 60s;
+        # Strips the client's Accept-Encoding so the upstream answers
+        # uncompressed - ModSecurity never decompresses a response body
+        # before inspecting it, so a gzipped response makes CRS's own
+        # RESPONSE-950..956 data-leakage rules (leaked stack traces, DB
+        # errors, etc.) skip themselves entirely (see rule 950020) rather
+        # than scan binary garbage. Confirmed via a real debug-log trace:
+        # a gzip-compressed DVWA error page produced a 'Skipped rule id
+        # 953100' line with no data-leakage match, despite the plaintext
+        # body visibly containing a PHP stack trace.
+        proxy_set_header Accept-Encoding "";
         proxy_pass {upstream_url};
     }}"""
 
