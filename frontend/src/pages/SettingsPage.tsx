@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { api, DiscordWebhook, discordApi, EngineSettings, engineSettingsApi, LogSink } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { ChangePasswordForm } from "../components/ChangePasswordForm";
+import { useConfirm } from "../components/ConfirmProvider";
 import { useLanguage } from "../i18n/LanguageContext";
 
 const emptyForm = { name: "", protocol: "udp" as "udp" | "tcp", host: "", port: 514 };
@@ -9,12 +11,12 @@ const emptyDiscordForm = { name: "", webhook_url: "" };
 
 function DiscordWebhooksCard() {
   const { t } = useLanguage();
+  const confirm = useConfirm();
   const [webhooks, setWebhooks] = useState<DiscordWebhook[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState(emptyDiscordForm);
 
   function refresh() {
-    discordApi.list().then(setWebhooks).catch((e) => setError(String(e)));
+    discordApi.list().then(setWebhooks).catch((e) => toast.error(String(e)));
   }
 
   useEffect(refresh, []);
@@ -23,10 +25,11 @@ function DiscordWebhooksCard() {
     if (!form.name.trim() || !form.webhook_url.trim()) return;
     try {
       await discordApi.create(form.name, form.webhook_url);
+      toast.success(t("discord.addSuccess", { name: form.name }));
       setForm(emptyDiscordForm);
       refresh();
     } catch (e) {
-      setError(String(e));
+      toast.error(String(e));
     }
   }
 
@@ -34,7 +37,6 @@ function DiscordWebhooksCard() {
     <div className="card">
       <h3>{t("discord.title")}</h3>
       <p className="muted">{t("discord.description")}</p>
-      {error && <p>{error}</p>}
       <table>
         <thead>
           <tr>
@@ -51,13 +53,29 @@ function DiscordWebhooksCard() {
                 {w.webhook_url}
               </td>
               <td style={{ display: "flex", gap: 8 }}>
-                <button className="btn" onClick={() => discordApi.toggle(w.id, !w.enabled).then(refresh)}>
+                <button
+                  className="btn"
+                  onClick={() =>
+                    discordApi
+                      .toggle(w.id, !w.enabled)
+                      .then(refresh)
+                      .catch((e) => toast.error(String(e)))
+                  }
+                >
                   {w.enabled ? t("common.disable") : t("common.enable")}
                 </button>
                 <button
-                  className="btn"
-                  onClick={() => {
-                    if (confirm(t("discord.deleteConfirm", { name: w.name }))) discordApi.delete(w.id).then(refresh);
+                  className="btn btn-danger"
+                  onClick={async () => {
+                    if (await confirm(t("discord.deleteConfirm", { name: w.name }))) {
+                      discordApi
+                        .delete(w.id)
+                        .then(() => {
+                          toast.success(t("discord.deleteSuccess", { name: w.name }));
+                          refresh();
+                        })
+                        .catch((e) => toast.error(String(e)));
+                    }
                   }}
                 >
                   {t("common.delete")}
@@ -86,7 +104,7 @@ function DiscordWebhooksCard() {
           value={form.webhook_url}
           onChange={(e) => setForm({ ...form, webhook_url: e.target.value })}
         />
-        <button className="btn" onClick={submit}>
+        <button className="btn btn-primary" onClick={submit}>
           {t("discord.addWebhook")}
         </button>
       </div>
@@ -126,13 +144,12 @@ function EngineSettingsCard() {
       <h3>{t("engine.title")}</h3>
       <p className="muted">{t("engine.description")}</p>
       {status && <p>{status}</p>}
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 480 }}>
+      <div className="engine-grid">
         <label>
           {t("engine.auditEngine")}
           <select
             value={engine.audit_engine}
             onChange={(e) => setEngine({ ...engine, audit_engine: e.target.value as EngineSettings["audit_engine"] })}
-            style={{ display: "block", marginTop: 4, width: "100%" }}
           >
             <option value="On">{t("engine.auditEngineOn")}</option>
             <option value="Off">{t("engine.auditEngineOff")}</option>
@@ -144,11 +161,10 @@ function EngineSettingsCard() {
           <input
             value={engine.audit_log_relevant_status}
             onChange={(e) => setEngine({ ...engine, audit_log_relevant_status: e.target.value })}
-            style={{ display: "block", marginTop: 4, width: "100%" }}
           />
           <span className="muted">{t("engine.auditLogRelevantStatusHint")}</span>
         </label>
-        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <label className="engine-checkbox">
           <input
             type="checkbox"
             checked={engine.request_body_access}
@@ -156,7 +172,7 @@ function EngineSettingsCard() {
           />
           {t("engine.requestBodyAccess")}
         </label>
-        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <label className="engine-checkbox">
           <input
             type="checkbox"
             checked={engine.response_body_access}
@@ -170,7 +186,6 @@ function EngineSettingsCard() {
             type="number"
             value={engine.request_body_limit}
             onChange={(e) => setEngine({ ...engine, request_body_limit: Number(e.target.value) })}
-            style={{ display: "block", marginTop: 4, width: "100%" }}
           />
         </label>
         <label>
@@ -179,37 +194,35 @@ function EngineSettingsCard() {
             type="number"
             value={engine.response_body_limit}
             onChange={(e) => setEngine({ ...engine, response_body_limit: Number(e.target.value) })}
-            style={{ display: "block", marginTop: 4, width: "100%" }}
           />
         </label>
-        <label>
+        <label className="engine-span-2">
           {t("engine.responseBodyMimeType")}
           <input
             value={engine.response_body_mime_type}
             onChange={(e) => setEngine({ ...engine, response_body_mime_type: e.target.value })}
-            style={{ display: "block", marginTop: 4, width: "100%" }}
           />
         </label>
-
-        <button className="btn" style={{ alignSelf: "flex-start" }} onClick={() => setShowAdvanced(!showAdvanced)}>
-          {showAdvanced ? `▾ ${t("engine.advancedTitle")}` : `▸ ${t("engine.advancedToggle")}`}
-        </button>
-        {showAdvanced && (
-          <div>
-            <p className="muted">{t("engine.advancedDesc")}</p>
-            <textarea
-              className="rule-editor"
-              placeholder={t("engine.advancedPlaceholder")}
-              value={engine.advanced_config}
-              onChange={(e) => setEngine({ ...engine, advanced_config: e.target.value })}
-            />
-          </div>
-        )}
-
-        <button className="btn" onClick={save}>
-          {t("engine.save")}
-        </button>
       </div>
+
+      <button className="btn" style={{ marginTop: 14 }} onClick={() => setShowAdvanced(!showAdvanced)}>
+        {showAdvanced ? `▾ ${t("engine.advancedTitle")}` : `▸ ${t("engine.advancedToggle")}`}
+      </button>
+      {showAdvanced && (
+        <div style={{ marginTop: 10 }}>
+          <p className="muted">{t("engine.advancedDesc")}</p>
+          <textarea
+            className="rule-editor engine-advanced-editor"
+            placeholder={t("engine.advancedPlaceholder")}
+            value={engine.advanced_config}
+            onChange={(e) => setEngine({ ...engine, advanced_config: e.target.value })}
+          />
+        </div>
+      )}
+
+      <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={save}>
+        {t("engine.save")}
+      </button>
     </div>
   );
 }
@@ -217,13 +230,13 @@ function EngineSettingsCard() {
 export function SettingsPage() {
   const { t } = useLanguage();
   const { isAdmin } = useAuth();
+  const confirm = useConfirm();
   const [sinks, setSinks] = useState<LogSink[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [passwordChanged, setPasswordChanged] = useState(false);
 
   function refresh() {
-    api.listLogSinks().then(setSinks).catch((e) => setError(String(e)));
+    api.listLogSinks().then(setSinks).catch((e) => toast.error(String(e)));
   }
 
   useEffect(refresh, []);
@@ -232,10 +245,11 @@ export function SettingsPage() {
     if (!form.name.trim() || !form.host.trim()) return;
     try {
       await api.createLogSink(form);
+      toast.success(t("settings.addSinkSuccess", { name: form.name }));
       setForm(emptyForm);
       refresh();
     } catch (e) {
-      setError(String(e));
+      toast.error(String(e));
     }
   }
 
@@ -243,8 +257,6 @@ export function SettingsPage() {
     <div>
       <h2>{t("settings.title")}</h2>
       <p className="muted">{t("settings.description")}</p>
-
-      {error && <p>{error}</p>}
 
       <div className="card">
         <table>
@@ -267,13 +279,29 @@ export function SettingsPage() {
                 <td style={{ display: "flex", gap: 8 }}>
                   {isAdmin && (
                     <>
-                      <button className="btn" onClick={() => api.toggleLogSink(s.id, !s.enabled).then(refresh)}>
+                      <button
+                        className="btn"
+                        onClick={() =>
+                          api
+                            .toggleLogSink(s.id, !s.enabled)
+                            .then(refresh)
+                            .catch((e) => toast.error(String(e)))
+                        }
+                      >
                         {s.enabled ? t("common.disable") : t("common.enable")}
                       </button>
                       <button
-                        className="btn"
-                        onClick={() => {
-                          if (confirm(t("settings.deleteConfirm", { name: s.name }))) api.deleteLogSink(s.id).then(refresh);
+                        className="btn btn-danger"
+                        onClick={async () => {
+                          if (await confirm(t("settings.deleteConfirm", { name: s.name }))) {
+                            api
+                              .deleteLogSink(s.id)
+                              .then(() => {
+                                toast.success(t("settings.deleteSinkSuccess", { name: s.name }));
+                                refresh();
+                              })
+                              .catch((e) => toast.error(String(e)));
+                          }
                         }}
                       >
                         {t("common.delete")}
@@ -319,7 +347,7 @@ export function SettingsPage() {
               value={form.port}
               onChange={(e) => setForm({ ...form, port: Number(e.target.value) })}
             />
-            <button className="btn" onClick={submit}>
+            <button className="btn btn-primary" onClick={submit}>
               {t("settings.addSink")}
             </button>
           </div>
