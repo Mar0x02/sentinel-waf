@@ -1,4 +1,14 @@
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+// Falls back to whatever host/protocol the browser actually used to load
+// the dashboard (port 8000, same as the backend's fixed docker-compose
+// port mapping) rather than hardcoding "localhost" - a hardcoded value
+// only works when the browser is on the same machine as the backend.
+// Confirmed broken in practice: opening the dashboard from a different
+// machine than the VM it's deployed on (by the VM's real IP/hostname)
+// sent every API call to "localhost:8000" on the *viewer's own machine*
+// instead of the VM, which has nothing listening there. VITE_API_BASE_URL
+// can still override this explicitly (e.g. behind a reverse proxy where
+// the API isn't on :8000) - see docker-compose.yml.
+const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? `${window.location.protocol}//${window.location.hostname}:8000`;
 
 export interface CatalogEntry {
   id: string;

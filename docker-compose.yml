@@ -43,8 +43,11 @@ services:
     build: ./frontend
     depends_on:
       - backend
-    environment:
-      VITE_API_BASE_URL: http://localhost:8000
+    # No VITE_API_BASE_URL here on purpose - the frontend derives it from
+    # whatever host the browser used to load the dashboard (see
+    # api/client.ts), which works whether that's localhost, a LAN IP, or
+    # a real hostname. Set this explicitly only if the API isn't reachable
+    # on the same host at port 8000 (e.g. behind a reverse proxy).
     ports:
       - "5173:5173"
 
