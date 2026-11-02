@@ -1,17 +1,19 @@
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { api, ErrorPage } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import { useConfirm } from "../components/ConfirmProvider";
 import { useLanguage } from "../i18n/LanguageContext";
 
 export function ErrorPagesPage() {
   const { t } = useLanguage();
   const { canWrite } = useAuth();
+  const confirm = useConfirm();
   const [pages, setPages] = useState<ErrorPage[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ statusCode: number; html: string } | null>(null);
 
   function refresh() {
-    api.listErrorPages().then(setPages).catch((e) => setError(String(e)));
+    api.listErrorPages().then(setPages).catch((e) => toast.error(String(e)));
   }
 
   useEffect(refresh, []);
@@ -22,24 +24,32 @@ export function ErrorPagesPage() {
 
   async function save() {
     if (!editing) return;
-    await api.updateErrorPage(editing.statusCode, editing.html);
-    setEditing(null);
-    refresh();
+    try {
+      await api.updateErrorPage(editing.statusCode, editing.html);
+      toast.success(t("errorPages.saveSuccess", { code: editing.statusCode }));
+      setEditing(null);
+      refresh();
+    } catch (e) {
+      toast.error(String(e));
+    }
   }
 
   async function reset(statusCode: number) {
-    if (!confirm(t("errorPages.resetConfirm", { code: statusCode }))) return;
-    await api.resetErrorPage(statusCode);
-    if (editing?.statusCode === statusCode) setEditing(null);
-    refresh();
+    if (!(await confirm(t("errorPages.resetConfirm", { code: statusCode })))) return;
+    try {
+      await api.resetErrorPage(statusCode);
+      toast.success(t("errorPages.resetSuccess", { code: statusCode }));
+      if (editing?.statusCode === statusCode) setEditing(null);
+      refresh();
+    } catch (e) {
+      toast.error(String(e));
+    }
   }
 
   return (
     <div>
       <h2>{t("errorPages.title")}</h2>
       <p className="muted">{t("errorPages.description")}</p>
-
-      {error && <p>{error}</p>}
 
       <div className="card">
         {pages.map((p) => (
@@ -90,7 +100,7 @@ export function ErrorPagesPage() {
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button className="btn" onClick={save}>
+            <button className="btn btn-primary" onClick={save}>
               {t("common.save")}
             </button>
             <button className="btn" onClick={() => setEditing(null)}>

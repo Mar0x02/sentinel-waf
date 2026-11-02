@@ -33,7 +33,7 @@ export function ChangePasswordForm({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 360 }}>
-      {error && <p>{error}</p>}
+      {error && <p className="login-error" style={{ textAlign: "left" }}>{error}</p>}
       <input
         type="password"
         placeholder={t("auth.currentPassword")}
@@ -52,7 +52,7 @@ export function ChangePasswordForm({ onSuccess }: { onSuccess: () => void }) {
         value={confirmPassword}
         onChange={(e) => setConfirmPassword(e.target.value)}
       />
-      <button className="btn" type="submit" disabled={busy}>
+      <button className="btn btn-primary" type="submit" disabled={busy}>
         {t("auth.changePassword")}
       </button>
     </form>

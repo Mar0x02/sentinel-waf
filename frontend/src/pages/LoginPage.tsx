@@ -37,7 +37,7 @@ export function LoginPage() {
           {t("auth.password")}
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
         </label>
-        <button className="btn" type="submit" disabled={busy}>
+        <button className="btn btn-primary" type="submit" disabled={busy}>
           {t("auth.loginButton")}
         </button>
       </form>
