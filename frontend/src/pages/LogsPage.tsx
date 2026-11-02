@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { api, AuditLogEntry } from "../api/client";
 import { useLanguage } from "../i18n/LanguageContext";
 
@@ -10,7 +11,6 @@ export function LogsPage() {
   const [ruleId, setRuleId] = useState("");
   const [clientIp, setClientIp] = useState("");
   const [blockedOnly, setBlockedOnly] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const limit = 25;
 
@@ -21,7 +21,7 @@ export function LogsPage() {
         setItems(page.items);
         setTotal(page.total);
       })
-      .catch((e) => setError(String(e)));
+      .catch((e) => toast.error(t("logs.loadError", { error: String(e) })));
   }, [offset, ruleId, clientIp, blockedOnly]);
 
   return (
@@ -56,8 +56,6 @@ export function LogsPage() {
           {t("logs.blockedOnly")}
         </label>
       </div>
-
-      {error && <p>{t("logs.loadError", { error })}</p>}
 
       <p className="muted" style={{ fontSize: 12 }}>
         {t("logs.detailHint")}
@@ -105,43 +103,45 @@ export function LogsPage() {
                   </tr>
                   {isExpanded && (
                     <tr>
-                      <td colSpan={7} style={{ background: "var(--bg-subtle, #f6f7f9)" }}>
-                        <div style={{ padding: "8px 4px", fontSize: 13 }}>
-                          <div>
-                            <strong>{t("logs.transactionId")}:</strong> {entry.transaction_id}
+                      <td colSpan={7} className="log-detail-cell">
+                        <div className="log-terminal">
+                          <div className="log-terminal-titlebar">
+                            <span className="log-terminal-title">{entry.transaction_id}</span>
                           </div>
-                          <div>
-                            <strong>{t("logs.userAgent")}:</strong> {entry.user_agent ?? "-"}
-                          </div>
-                          {entry.matches.length === 0 ? (
-                            <p className="muted">{t("logs.noMatches")}</p>
-                          ) : (
-                            <table style={{ marginTop: 8 }}>
-                              <thead>
-                                <tr>
-                                  <th>{t("logs.matchedRules")}</th>
-                                  <th>{t("logs.matchSeverity")}</th>
-                                  <th>{t("logs.matchTags")}</th>
-                                  <th>{t("logs.matchData")}</th>
-                                </tr>
-                              </thead>
-                              <tbody>
+                          <div className="log-terminal-body">
+                            <div className="log-terminal-line">
+                              <span className="log-terminal-prompt">$</span> {t("logs.transactionId")}=
+                              <span className="log-terminal-value">{entry.transaction_id}</span>
+                            </div>
+                            <div className="log-terminal-line">
+                              <span className="log-terminal-prompt">$</span> {t("logs.userAgent")}=
+                              <span className="log-terminal-value">{entry.user_agent ?? "-"}</span>
+                            </div>
+                            {entry.matches.length === 0 ? (
+                              <div className="log-terminal-line log-terminal-comment"># {t("logs.noMatches")}</div>
+                            ) : (
+                              <>
+                                <div className="log-terminal-line log-terminal-comment"># {t("logs.matchedRules")}</div>
                                 {entry.matches.map((m, idx) => (
-                                  <tr key={`${entry.transaction_id}-match-${idx}`}>
-                                    <td>
-                                      {m.rule_id ?? "-"}
-                                      {m.message ? ` - ${m.message}` : ""}
-                                    </td>
-                                    <td>{m.severity ?? "-"}</td>
-                                    <td>{m.tags.join(", ") || "-"}</td>
-                                    <td style={{ maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis" }}>
-                                      {m.data ?? "-"}
-                                    </td>
-                                  </tr>
+                                  <div className="log-terminal-match" key={`${entry.transaction_id}-match-${idx}`}>
+                                    <div className="log-terminal-line">
+                                      <span className="log-terminal-rule">[{m.rule_id ?? "-"}]</span>{" "}
+                                      {m.message ?? ""}
+                                    </div>
+                                    <div className="log-terminal-line log-terminal-indent log-terminal-comment">
+                                      {t("logs.matchSeverity")}={m.severity ?? "-"} {t("logs.matchTags")}=
+                                      {m.tags.join(",") || "-"}
+                                    </div>
+                                    {m.data && (
+                                      <div className="log-terminal-line log-terminal-indent log-terminal-data">
+                                        {t("logs.matchData")}: {m.data}
+                                      </div>
+                                    )}
+                                  </div>
                                 ))}
-                              </tbody>
-                            </table>
-                          )}
+                              </>
+                            )}
+                          </div>
                         </div>
                       </td>
                     </tr>
