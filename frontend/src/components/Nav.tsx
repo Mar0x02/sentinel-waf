@@ -1,4 +1,4 @@
-import { AlertTriangle, Globe, LayoutDashboard, Languages, LogOut, ScrollText, Settings, ShieldCheck, Users } from "lucide-react";
+import { AlertTriangle, Github, Globe, LayoutDashboard, Languages, LogOut, ScrollText, Settings, ShieldCheck, Users } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -70,7 +70,7 @@ export function Nav() {
           rel="noreferrer"
           title="Mar0x02/sentinel-waf"
         >
-          <ShieldCheck size={13} strokeWidth={2} />
+          <Github size={13} strokeWidth={2} />
           <span>Mar0x02/sentinel-waf</span>
         </a>
       </div>
