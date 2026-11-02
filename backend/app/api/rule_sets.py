@@ -23,6 +23,7 @@ from app.schemas.rule_sets import (
     RuleFileVersionOut,
     RuleOut,
     RuleSetOut,
+    SetupFileStatusOut,
     TunableFixOut,
     TunableGroupCreate,
     TunableGroupOut,
@@ -129,6 +130,37 @@ def get_rule_set(rule_set_id: int, db: Session = Depends(get_db)):
     if rule_set is None:
         raise HTTPException(404, "Rule set not found")
     return _rule_set_out(db, rule_set)
+
+
+@router.get("/rule-sets/{rule_set_id}/other-setup-files", response_model=list[SetupFileStatusOut])
+def list_other_setup_files(rule_set_id: int, db: Session = Depends(get_db)):
+    """Every *other* rule set's setup file (crs-setup.conf-equivalent),
+    for Base Tuning's detail page to show as a read-only status overview -
+    see CLAUDE.md on why Base Tuning never copies/edits these files
+    directly, only reads their current enabled state.
+    """
+    rule_set = db.get(RuleSet, rule_set_id)
+    if rule_set is None:
+        raise HTTPException(404, "Rule set not found")
+    setup_files = (
+        db.query(RuleFile)
+        .join(RuleSet, RuleFile.rule_set_id == RuleSet.id)
+        .filter(RuleFile.file_kind == FileKind.setup, RuleSet.id != rule_set_id)
+        .order_by(RuleSet.order_seq)
+        .all()
+    )
+    return [
+        SetupFileStatusOut(
+            rule_set_id=rf.rule_set.id,
+            rule_set_name=rf.rule_set.name,
+            rule_set_slug=rf.rule_set.slug,
+            rule_file_id=rf.id,
+            filename=rf.filename,
+            size_bytes=len(rf.content.encode()),
+            in_use=rf.rule_set.enabled and rf.enabled,
+        )
+        for rf in setup_files
+    ]
 
 
 @router.post("/rule-sets/import-catalog", response_model=RuleSetOut, status_code=201)

@@ -51,6 +51,24 @@ class RuleFileContentOut(BaseModel):
     content: str
 
 
+class SetupFileStatusOut(BaseModel):
+    """One other rule set's setup file (e.g. an imported CRS's
+    crs-setup.conf), shown read-only from Base Tuning's own detail page -
+    see RuleSetDetailPage's RelatedSetupFilesPanel. `in_use` mirrors
+    render_service.render_rules()'s own skip conditions exactly (rule set
+    disabled, or the file itself disabled) rather than re-deriving the
+    logic differently here.
+    """
+
+    rule_set_id: int
+    rule_set_name: str
+    rule_set_slug: str
+    rule_file_id: int
+    filename: str
+    size_bytes: int
+    in_use: bool
+
+
 class TunableFixOut(BaseModel):
     rule_set_id: int
     rule_set_name: str

@@ -203,6 +203,12 @@ export const translations: Record<Lang, Record<string, string>> = {
     "tunables.saveSuccess": "Saved.",
     "tunables.saveError": "Failed to save: {error}",
 
+    "relatedSetup.title": "Other rule sets' setup files",
+    "relatedSetup.description": "Read-only - every other rule set's crs-setup.conf-equivalent file, and whether it's actually in effect right now. Edit these from their own rule set's page.",
+    "relatedSetup.none": "No other rule set has a setup file yet.",
+    "relatedSetup.inUse": "In use",
+    "relatedSetup.notInUse": "Not in use",
+
     "sites.title": "Sites (Reverse Proxy)",
     "sites.description":
       "Each enabled site becomes an nginx server block on the waf-engine container, protected by whatever rule sets are active on the Rules page. HTTP only for now - see README for TLS.",
@@ -511,6 +517,12 @@ export const translations: Record<Lang, Record<string, string>> = {
     "tunables.save": "Simpan",
     "tunables.saveSuccess": "Tersimpan.",
     "tunables.saveError": "Gagal nyimpen: {error}",
+
+    "relatedSetup.title": "File setup rule set lain",
+    "relatedSetup.description": "Read-only - file setara crs-setup.conf dari tiap rule set lain, dan status apakah dia beneran aktif dipakai sekarang. Edit langsung dari halaman rule set-nya masing-masing.",
+    "relatedSetup.none": "Belum ada rule set lain yang punya file setup.",
+    "relatedSetup.inUse": "Lagi dipakai",
+    "relatedSetup.notInUse": "Gak dipakai",
 
     "sites.title": "Sites (Reverse Proxy)",
     "sites.description":

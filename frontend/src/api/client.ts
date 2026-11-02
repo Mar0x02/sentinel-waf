@@ -105,6 +105,16 @@ export interface TunableGroup {
   variables: Record<string, string>;
 }
 
+export interface SetupFileStatus {
+  rule_set_id: number;
+  rule_set_name: string;
+  rule_set_slug: string;
+  rule_file_id: number;
+  filename: string;
+  size_bytes: number;
+  in_use: boolean;
+}
+
 export interface Site {
   id: number;
   name: string;
@@ -403,6 +413,12 @@ export const api = {
   getTuning: (ruleSetId: number) => request<CrsTuning>(`/api/rule-sets/${ruleSetId}/tuning`),
   updateTuning: (ruleSetId: number, tuning: CrsTuning) =>
     request<CrsTuning>(`/api/rule-sets/${ruleSetId}/tuning`, { method: "PUT", body: JSON.stringify(tuning) }),
+
+  // Every *other* rule set's setup file (e.g. an imported CRS's
+  // crs-setup.conf), read-only - shown on Base Tuning's detail page so
+  // it's clear at a glance which ones are actually in effect.
+  listOtherSetupFiles: (ruleSetId: number) =>
+    request<SetupFileStatus[]>(`/api/rule-sets/${ruleSetId}/other-setup-files`),
 
   // Generic auto-detected tunables (any setvar:tx.X=Y block in the setup
   // file, beyond the 4 covered by getTuning/updateTuning above).

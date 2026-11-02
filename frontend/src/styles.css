@@ -443,6 +443,19 @@ th {
   font-weight: 500;
 }
 
+.pill.in-use {
+  background: rgba(52, 211, 153, 0.16);
+  color: var(--status-good);
+  text-decoration: none;
+}
+
+.pill.not-in-use {
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-weight: 500;
+  text-decoration: none;
+}
+
 .rule-snippet-toggle {
   background: none;
   border: none;

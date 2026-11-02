@@ -8,6 +8,7 @@ import {
   RuleFileVersion,
   RuleRow,
   RuleSet,
+  SetupFileStatus,
   TunableFix,
   TunableGroup,
   TxVarWarning,
@@ -22,10 +23,16 @@ function CrsTuningPanel({ ruleSetId }: { ruleSetId: number }) {
   const { t } = useLanguage();
   const { canWrite } = useAuth();
   const [tuning, setTuning] = useState<CrsTuning | null>(null);
+  const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    api.getTuning(ruleSetId).then(setTuning).catch(() => setTuning(null));
+    setLoading(true);
+    api
+      .getTuning(ruleSetId)
+      .then(setTuning)
+      .catch(() => setTuning(null))
+      .finally(() => setLoading(false));
   }, [ruleSetId]);
 
   async function save() {
@@ -40,6 +47,13 @@ function CrsTuningPanel({ ruleSetId }: { ruleSetId: number }) {
     }
   }
 
+  if (loading) {
+    return (
+      <div className="card">
+        <LoadingInline />
+      </div>
+    );
+  }
   if (!tuning) return null;
 
   return (
@@ -178,7 +192,13 @@ function TunablesPanel({ ruleSetId }: { ruleSetId: number }) {
     api.listTunables(ruleSetId).then(setGroups).catch(() => setGroups([]));
   }, [ruleSetId]);
 
-  if (groups === null) return null;
+  if (groups === null) {
+    return (
+      <div className="card">
+        <LoadingInline />
+      </div>
+    );
+  }
 
   return (
     <div className="card">
@@ -187,6 +207,47 @@ function TunablesPanel({ ruleSetId }: { ruleSetId: number }) {
       {groups.length === 0 && <p className="muted">{t("tunables.none")}</p>}
       {groups.map((g) => (
         <TunableRow key={g.rule_id} ruleSetId={ruleSetId} group={g} />
+      ))}
+    </div>
+  );
+}
+
+// Read-only status overview, shown only on Base Tuning's own detail page -
+// every *other* rule set's setup file (e.g. an imported CRS's
+// crs-setup.conf) and whether it's actually in effect right now. Never
+// edits/copies those files - see backend/app/api/rule_sets.py's
+// list_other_setup_files and CLAUDE.md on why rule content always stays
+// in its own rule set's directory.
+function RelatedSetupFilesPanel({ ruleSetId }: { ruleSetId: number }) {
+  const { t } = useLanguage();
+  const [files, setFiles] = useState<SetupFileStatus[] | null>(null);
+
+  useEffect(() => {
+    api.listOtherSetupFiles(ruleSetId).then(setFiles).catch(() => setFiles([]));
+  }, [ruleSetId]);
+
+  if (files === null) {
+    return (
+      <div className="card">
+        <LoadingInline />
+      </div>
+    );
+  }
+
+  return (
+    <div className="card">
+      <h3>{t("relatedSetup.title")}</h3>
+      <p className="muted">{t("relatedSetup.description")}</p>
+      {files.length === 0 && <p className="muted">{t("relatedSetup.none")}</p>}
+      {files.map((f) => (
+        <div className="rule-file-row" key={f.rule_file_id}>
+          <div>
+            <strong>{f.rule_set_name}</strong> <span className="muted">· {f.filename} · {f.size_bytes} bytes</span>
+          </div>
+          <Link to={`/rules/${f.rule_set_id}`} className={`pill ${f.in_use ? "in-use" : "not-in-use"}`}>
+            {f.in_use ? t("relatedSetup.inUse") : t("relatedSetup.notInUse")}
+          </Link>
+        </div>
       ))}
     </div>
   );
@@ -222,6 +283,7 @@ export function RuleSetDetailPage() {
   const [ruleSet, setRuleSet] = useState<RuleSet | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [files, setFiles] = useState<RuleFile[]>([]);
+  const [filesLoaded, setFilesLoaded] = useState(false);
   const [editing, setEditing] = useState<{ id: number; filename: string; content: string } | null>(null);
   const [rulesOf, setRulesOf] = useState<{
     fileId: number;
@@ -239,6 +301,8 @@ export function RuleSetDetailPage() {
   );
   const [previewVersionId, setPreviewVersionId] = useState<number | null>(null);
   const [syncVersion, setSyncVersion] = useState(0);
+  const [loadingFileId, setLoadingFileId] = useState<number | null>(null);
+  const [loadingAction, setLoadingAction] = useState<"rules" | "history" | "edit" | null>(null);
 
   const isCustom = ruleSet?.slug === "custom";
 
@@ -250,7 +314,11 @@ export function RuleSetDetailPage() {
   }
 
   function refreshFiles() {
-    api.listRuleFiles(id).then(setFiles).catch((e) => toast.error(String(e)));
+    api
+      .listRuleFiles(id)
+      .then(setFiles)
+      .catch((e) => toast.error(String(e)))
+      .finally(() => setFilesLoaded(true));
   }
 
   useEffect(() => {
@@ -327,8 +395,17 @@ export function RuleSetDetailPage() {
   }
 
   async function openEditor(file: RuleFile) {
-    const { content } = await api.readRuleFile(file.id);
-    setEditing({ id: file.id, filename: file.filename, content });
+    setLoadingFileId(file.id);
+    setLoadingAction("edit");
+    try {
+      const { content } = await api.readRuleFile(file.id);
+      setEditing({ id: file.id, filename: file.filename, content });
+    } catch (e) {
+      toast.error(String(e));
+    } finally {
+      setLoadingFileId(null);
+      setLoadingAction(null);
+    }
   }
 
   async function performSave() {
@@ -366,15 +443,33 @@ export function RuleSetDetailPage() {
   }
 
   async function openRules(file: RuleFile) {
-    const rows = await api.listRules({ rule_file_id: file.id, limit: 200 });
-    setRulesOf({ fileId: file.id, filename: file.filename, rows, warnings: file.warnings });
-    setExpandedRuleId(null);
+    setLoadingFileId(file.id);
+    setLoadingAction("rules");
+    try {
+      const rows = await api.listRules({ rule_file_id: file.id, limit: 200 });
+      setRulesOf({ fileId: file.id, filename: file.filename, rows, warnings: file.warnings });
+      setExpandedRuleId(null);
+    } catch (e) {
+      toast.error(String(e));
+    } finally {
+      setLoadingFileId(null);
+      setLoadingAction(null);
+    }
   }
 
   async function openHistory(file: RuleFile) {
-    const versions = await api.listRuleFileVersions(file.id);
-    setHistoryOf({ fileId: file.id, filename: file.filename, versions });
-    setPreviewVersionId(null);
+    setLoadingFileId(file.id);
+    setLoadingAction("history");
+    try {
+      const versions = await api.listRuleFileVersions(file.id);
+      setHistoryOf({ fileId: file.id, filename: file.filename, versions });
+      setPreviewVersionId(null);
+    } catch (e) {
+      toast.error(String(e));
+    } finally {
+      setLoadingFileId(null);
+      setLoadingAction(null);
+    }
   }
 
   async function doRevert(version: RuleFileVersion) {
@@ -417,7 +512,7 @@ export function RuleSetDetailPage() {
     );
   }
 
-  if (!ruleSet) return <LoadingInline />;
+  if (!ruleSet || !filesLoaded) return <LoadingInline />;
 
   const setupFile = files.find((f) => f.file_kind === "setup") ?? null;
 
@@ -515,7 +610,10 @@ export function RuleSetDetailPage() {
           <div className="card setup-file-bar">
             <div>
               <strong>{setupFile.filename}</strong>{" "}
-              <span className="muted">{setupFile.size_bytes} bytes</span>
+              <span className="muted">{setupFile.size_bytes} bytes</span>{" "}
+              <span className={`pill ${ruleSet.enabled && setupFile.enabled ? "in-use" : "not-in-use"}`}>
+                {ruleSet.enabled && setupFile.enabled ? t("relatedSetup.inUse") : t("relatedSetup.notInUse")}
+              </span>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               {canWrite && ruleSet.slug !== "base-tuning" && (
@@ -524,18 +622,36 @@ export function RuleSetDetailPage() {
                 </button>
               )}
               {canWrite && (
-                <button className="btn" onClick={() => openEditor(setupFile)}>
-                  {t("common.edit")}
+                <button
+                  className="btn"
+                  onClick={() => openEditor(setupFile)}
+                  disabled={loadingFileId === setupFile.id}
+                >
+                  {loadingFileId === setupFile.id && loadingAction === "edit" ? t("common.loading") : t("common.edit")}
                 </button>
               )}
-              <button className="btn" onClick={() => openHistory(setupFile)}>
-                {t("rules.history")}
+              <button
+                className="btn"
+                onClick={() => openHistory(setupFile)}
+                disabled={loadingFileId === setupFile.id}
+              >
+                {loadingFileId === setupFile.id && loadingAction === "history" ? t("common.loading") : t("rules.history")}
               </button>
             </div>
           </div>
           {editing && editing.id === setupFile.id && editorPanel}
-          <CrsTuningPanel key={syncVersion} ruleSetId={ruleSet.id} />
-          <TunablesPanel key={syncVersion} ruleSetId={ruleSet.id} />
+          {/* Base Tuning's own setup file isn't CRS-shaped - CrsTuningPanel
+              would only show CRS's fallback example defaults with no real
+              effect if edited here, so swap in the related-files status
+              view instead. */}
+          {ruleSet.slug === "base-tuning" ? (
+            <RelatedSetupFilesPanel key={syncVersion} ruleSetId={ruleSet.id} />
+          ) : (
+            <>
+              <CrsTuningPanel key={syncVersion} ruleSetId={ruleSet.id} />
+              <TunablesPanel key={syncVersion} ruleSetId={ruleSet.id} />
+            </>
+          )}
         </>
       )}
 
@@ -551,12 +667,12 @@ export function RuleSetDetailPage() {
                 </span>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button className="btn" onClick={() => openRules(f)}>
-                  {t("rules.viewRules")}
+                <button className="btn" onClick={() => openRules(f)} disabled={loadingFileId === f.id}>
+                  {loadingFileId === f.id && loadingAction === "rules" ? t("common.loading") : t("rules.viewRules")}
                 </button>
                 {isCustom && canWrite && (
-                  <button className="btn" onClick={() => openEditor(f)}>
-                    {t("common.edit")}
+                  <button className="btn" onClick={() => openEditor(f)} disabled={loadingFileId === f.id}>
+                    {loadingFileId === f.id && loadingAction === "edit" ? t("common.loading") : t("common.edit")}
                   </button>
                 )}
                 {canWrite && (
