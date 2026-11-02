@@ -24,6 +24,21 @@ class SeverityCount(BaseModel):
     count: int
 
 
+class CategoryCount(BaseModel):
+    category: str
+    count: int
+
+
+class CategorySeries(BaseModel):
+    category: str
+    counts: list[int]
+
+
+class CategoryTrend(BaseModel):
+    buckets: list[str]
+    series: list[CategorySeries]
+
+
 class TrendPoint(BaseModel):
     bucket: str
     total: int

@@ -415,6 +415,15 @@ a {
   gap: 6px;
 }
 
+.legend-logs-link {
+  display: inline-flex;
+  color: var(--text-muted);
+}
+
+.legend-logs-link:hover {
+  color: var(--accent);
+}
+
 .legend-swatch {
   width: 12px;
   height: 2px;
@@ -542,8 +551,11 @@ th {
 }
 
 .bar-row {
+  display: block;
   font-size: 13px;
   margin-bottom: 10px;
+  text-decoration: none;
+  color: inherit;
 }
 
 .bar-row .bar-label {
@@ -554,6 +566,14 @@ th {
   margin-bottom: 4px;
   color: var(--text-secondary);
   cursor: default;
+}
+
+a.bar-row .bar-label {
+  cursor: pointer;
+}
+
+a.bar-row:hover .bar-label {
+  color: var(--accent);
 }
 
 .bar-row .bar-track-row {
@@ -605,6 +625,52 @@ th {
 
 .btn:active {
   transform: translateY(1px);
+}
+
+.date-range-picker {
+  position: relative;
+}
+
+.date-range-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+  padding: 4px;
+  min-width: 170px;
+  z-index: 20;
+}
+
+.date-range-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.date-range-row:hover {
+  background: var(--surface-2);
+}
+
+.date-range-check {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  flex-shrink: 0;
 }
 
 .btn:disabled {

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { TrendPoint } from "../api/client";
 import { useLanguage } from "../i18n/LanguageContext";
+import { smoothPath } from "../lib/smoothPath";
 
 const WIDTH = 760;
 const HEIGHT = 220;
@@ -20,10 +21,8 @@ export function TrendChart({ data }: { data: TrendPoint[] }) {
       PAD.left + (data.length === 1 ? innerW / 2 : (i / (data.length - 1)) * innerW);
     const y = (v: number) => PAD.top + innerH - (v / maxTotal) * innerH;
 
-    const totalPath = data.map((d, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(d.total)}`).join(" ");
-    const blockedPath = data
-      .map((d, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(d.blocked)}`)
-      .join(" ");
+    const totalPath = smoothPath(data.map((d, i) => [x(i), y(d.total)]));
+    const blockedPath = smoothPath(data.map((d, i) => [x(i), y(d.blocked)]));
 
     return { x, y, totalPath, blockedPath, maxTotal };
   }, [data]);

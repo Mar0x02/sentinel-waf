@@ -215,6 +215,21 @@ export interface StatsSummary {
   unique_ips: number;
 }
 
+export interface CategoryCount {
+  category: string;
+  count: number;
+}
+
+export interface CategorySeries {
+  category: string;
+  counts: number[];
+}
+
+export interface CategoryTrend {
+  buckets: string[];
+  series: CategorySeries[];
+}
+
 export interface RuleCount {
   rule_id: string;
   message: string | null;
@@ -486,6 +501,8 @@ export const api = {
   },
   statsSummary: () => request<StatsSummary>("/api/stats/summary"),
   statsTopRules: (limit = 10) => request<RuleCount[]>(`/api/stats/top-rules?limit=${limit}`),
+  statsTopCategories: (limit = 10) => request<CategoryCount[]>(`/api/stats/top-categories?limit=${limit}`),
+  statsCategoryTrend: (days = 7) => request<CategoryTrend>(`/api/stats/category-trend?days=${days}`),
   statsTopIps: (limit = 10) => request<IpCount[]>(`/api/stats/top-ips?limit=${limit}`),
   statsTrend: () => request<TrendPoint[]>("/api/stats/trend"),
   statsCountries: (limit = 50) => request<CountryCount[]>(`/api/stats/countries?limit=${limit}`),

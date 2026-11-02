@@ -1,7 +1,16 @@
 from fastapi import APIRouter, Depends, Query
 
 from app.config import Settings, get_settings
-from app.schemas.stats import CountryCount, IpCount, RuleCount, SeverityCount, StatsSummary, TrendPoint
+from app.schemas.stats import (
+    CategoryCount,
+    CategoryTrend,
+    CountryCount,
+    IpCount,
+    RuleCount,
+    SeverityCount,
+    StatsSummary,
+    TrendPoint,
+)
 from app.services import stats_service
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
@@ -15,6 +24,16 @@ def summary(settings: Settings = Depends(get_settings)):
 @router.get("/top-rules", response_model=list[RuleCount])
 def top_rules(limit: int = Query(10, ge=1, le=100), settings: Settings = Depends(get_settings)):
     return stats_service.get_top_rules(settings, limit)
+
+
+@router.get("/top-categories", response_model=list[CategoryCount])
+def top_categories(limit: int = Query(10, ge=1, le=100), settings: Settings = Depends(get_settings)):
+    return stats_service.get_top_categories(settings, limit)
+
+
+@router.get("/category-trend", response_model=CategoryTrend)
+def category_trend(days: int = Query(7, ge=1, le=90), settings: Settings = Depends(get_settings)):
+    return stats_service.get_category_trend(settings, days)
 
 
 @router.get("/top-ips", response_model=list[IpCount])
