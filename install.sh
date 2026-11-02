@@ -12,7 +12,7 @@
 #   ./install.sh          - dev mode (docker-compose.yml): dashboard on
 #                            :5173, API on :8000, two ports to open.
 #   ./install.sh --prod   - production mode (docker-compose.prod.yml):
-#                            dashboard + API both behind nginx on :80,
+#                            dashboard + API both behind nginx on :8000,
 #                            only one port to open. See
 #                            docker-compose.prod.yml for what differs.
 set -eu
@@ -28,8 +28,8 @@ if [ "${1:-}" = "--prod" ]; then
   # The backend has no host-exposed port in prod mode - health-check
   # through nginx's /api/* proxy instead (same path a real login request
   # would take), not the backend directly.
-  health_url="http://localhost/api/health"
-  dashboard_url="http://localhost"
+  health_url="http://localhost:8000/api/health"
+  dashboard_url="http://localhost:8000"
 fi
 
 # Logs persist for a container's whole lifetime, so on a rerun against an

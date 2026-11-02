@@ -134,14 +134,17 @@ akses dashboard - bukan beda kode, cuma beda cara di-build/di-serve:
 |---|---|---|
 | Frontend | Vite dev server | React di-build jadi static file, di-serve nginx |
 | Backend | expose port `8000` ke host | **tidak** expose ke host, cuma internal |
-| Port dashboard | `5173` (UI) + `8000` (API) terpisah | `80` doang, API-nya di-proxy nginx lewat `/api/*` |
+| Port dashboard | `5173` (UI) + `8000` (API) terpisah | `8000` doang, API-nya di-proxy nginx lewat `/api/*` |
 | Cocok buat | development/testing lokal | deploy ke VM/server sungguhan |
 
 Kalau dashboard-nya diakses dari mesin lain (bukan dari VM itu sendiri) -
 misal lab kamu pakai firewall kayak pfSense - mode production jauh lebih
-gampang: cuma **1 port** (`80`) yang perlu di-allow buat dashboard, bukan
-2 (`5173` dan `8000`). Port WAF traffic (`8080`/`8443`) tetap sama di
-kedua mode, itu jalur terpisah dari dashboard.
+gampang: cuma **1 port** (`8000`) yang perlu di-allow buat dashboard, bukan
+2 (`5173` dan `8000` terpisah). Port WAF traffic (`8080`/`8443`) tetap sama
+di kedua mode, itu jalur terpisah dari dashboard. `8000` dipilih (bukan
+`80`) biar gak butuh root buat bind port-nya dan gak bentrok kalau port
+`80` udah dipakai hal lain di host (misal jalur WAF traffic sendiri kalau
+di-mapping ke `80`).
 
 Jalanin mode production:
 
@@ -160,7 +163,7 @@ dijalanin di checkout yang sama - jadi bisa pindah dari dev ke production
 - [Docker](https://docs.docker.com/get-docker/) dan Docker Compose v2
   (sudah dites dengan Docker 29.x / Compose v5.x)
 - Mode dev: port `5173`, `8000`, `8080`, dan `8443` (kalau pakai HTTPS
-  per-site) tersedia di mesin kamu. Mode production: cukup `80`, `8080`,
+  per-site) tersedia di mesin kamu. Mode production: cukup `8000`, `8080`,
   dan `8443`.
 - Koneksi internet (buat download image dasar + rule OWASP CRS saat import
   pertama kali)
@@ -202,7 +205,7 @@ Setelah itu buka (mode dev):
 
 Atau (mode production, `--prod`):
 
-- **Dashboard**: `http://localhost` (port 80, API sudah termasuk lewat proxy)
+- **Dashboard**: `http://localhost:8000` (API sudah termasuk lewat proxy)
 - **WAF (jalur traffic)**: sama kayak di atas, `8080`/`8443`
 
 ### 2. Login pertama kali

@@ -64,8 +64,12 @@ services:
       dockerfile: Dockerfile.prod
     depends_on:
       - backend
+    # 8000, not 80 - avoids needing root/CAP_NET_BIND_SERVICE to bind the
+    # port, and avoids colliding with anything else already using 80 on
+    # the host (e.g. a reverse proxy already fronting other services on
+    # port 80, as this project's own WAF traffic path sometimes is).
     ports:
-      - "80:80"
+      - "8000:80"
 
   # The traffic path ("jalur") - nginx + ModSecurity v3 + whatever rules and
   # sites the dashboard has rendered. See CLAUDE.md. Unchanged from dev mode -
