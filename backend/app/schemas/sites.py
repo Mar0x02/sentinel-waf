@@ -1,6 +1,8 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from app.services.tls_service import CertValidationError, validate_cert_key_pair
 
 _DOMAIN_RE = r"^(\*\.)?[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$"
 # Scheme + host[:port] only - no path/query, so this can never inject
@@ -17,19 +19,74 @@ class SiteOut(BaseModel):
     enabled: bool
     created_at: datetime
     updated_at: datetime
+    # TLS: tls_cert/tls_key are intentionally never exposed here, even to an
+    # admin re-fetching their own site - write-only, same as a password
+    # field. has_cert + cert_expires_at are the only client-visible signal
+    # that a cert is stored, derived in api/sites.py at response time.
+    tls_enabled: bool
+    tls_listen_port: int
+    has_cert: bool = False
+    cert_expires_at: datetime | None = None
+    rate_limit_enabled: bool
+    rate_limit_rps: int
+    rate_limit_burst: int
+    conn_limit_enabled: bool
+    conn_limit_per_ip: int
 
     class Config:
         from_attributes = True
 
 
-class SiteCreate(BaseModel):
+class _TlsFieldsMixin(BaseModel):
+    tls_enabled: bool = False
+    tls_listen_port: int = Field(default=8443, ge=1, le=65535)
+    # None/omitted means "leave whatever cert is already stored alone" on an
+    # update (SiteUpdate) - see api/sites.py. On create there's nothing to
+    # keep, so the endpoint requires both when tls_enabled is True.
+    tls_cert: str | None = None
+    tls_key: str | None = None
+
+    @model_validator(mode="after")
+    def _validate_tls_pair(self):
+        cert, key = self.tls_cert, self.tls_key
+        if (cert is None) != (key is None):
+            raise ValueError("tls_cert and tls_key must be provided together")
+        if cert is not None and key is not None:
+            try:
+                validate_cert_key_pair(cert, key)
+            except CertValidationError as exc:
+                raise ValueError(str(exc)) from exc
+        return self
+
+
+class _RateLimitFieldsMixin(BaseModel):
+    # Per-IP request rate (nginx limit_req) - rps is a steady-state cap,
+    # burst is how many requests above that rate are queued (not dropped)
+    # before limit_req_status 429 kicks in. See render_service.py.
+    rate_limit_enabled: bool = False
+    rate_limit_rps: int = Field(default=20, ge=1, le=100_000)
+    rate_limit_burst: int = Field(default=40, ge=0, le=100_000)
+    # Per-IP concurrent connection cap (nginx limit_conn), independent of
+    # the above - guards against connection-holding abuse (e.g. slowloris
+    # style) that a request-rate limit alone doesn't catch.
+    conn_limit_enabled: bool = False
+    conn_limit_per_ip: int = Field(default=50, ge=1, le=100_000)
+
+
+class SiteCreate(_TlsFieldsMixin, _RateLimitFieldsMixin):
     name: str = Field(min_length=1, max_length=100)
     domain: str = Field(pattern=_DOMAIN_RE)
     upstream_url: str = Field(pattern=_UPSTREAM_RE)
     listen_port: int = Field(default=8080, ge=1, le=65535)
 
+    @model_validator(mode="after")
+    def _require_cert_if_enabled(self):
+        if self.tls_enabled and self.tls_cert is None:
+            raise ValueError("tls_cert and tls_key are required to enable HTTPS")
+        return self
 
-class SiteUpdate(BaseModel):
+
+class SiteUpdate(_TlsFieldsMixin, _RateLimitFieldsMixin):
     name: str = Field(min_length=1, max_length=100)
     domain: str = Field(pattern=_DOMAIN_RE)
     upstream_url: str = Field(pattern=_UPSTREAM_RE)

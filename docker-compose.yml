@@ -66,6 +66,11 @@ services:
       - audit-logs:/var/log/modsecurity/audit
     ports:
       - "8080:8080"
+      # Default TLS listen port for a Site with HTTPS enabled (manual
+      # cert upload, see CLAUDE.md) - if a site's tls_listen_port is
+      # changed from the 8443 default, add a matching mapping here too,
+      # same as listen_port already works for plain HTTP.
+      - "8443:8443"
 
   log-forwarder:
     build: ./log-forwarder

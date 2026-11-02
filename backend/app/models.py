@@ -67,6 +67,28 @@ class RuleFile(Base):
     rules: Mapped[list["Rule"]] = relationship(
         back_populates="rule_file", cascade="all, delete-orphan", order_by="Rule.order_index"
     )
+    versions: Mapped[list["RuleFileVersion"]] = relationship(
+        back_populates="rule_file", cascade="all, delete-orphan", order_by="RuleFileVersion.created_at.desc()"
+    )
+
+
+class RuleFileVersion(Base):
+    """Snapshot of a setup file's (e.g. crs-setup.conf) content taken right
+    before each overwrite - see importer.update_custom_rule_file(). Only
+    file_kind == setup files get snapshotted (CRS Tuning / Tunables panel /
+    raw edit all funnel through that one function, so this is the single
+    hook point for all three). Not used for plain rule files - those are
+    locked read-only unless they belong to the custom rule set anyway, and
+    weren't the ask that motivated this (see CLAUDE.md)."""
+
+    __tablename__ = "rule_file_versions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    rule_file_id: Mapped[int] = mapped_column(ForeignKey("rule_files.id", ondelete="CASCADE"))
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    rule_file: Mapped[RuleFile] = relationship(back_populates="versions")
 
 
 class Rule(Base):
@@ -99,6 +121,24 @@ class Site(Base):
     upstream_url: Mapped[str] = mapped_column(String, nullable=False)
     listen_port: Mapped[int] = mapped_column(Integer, default=8080, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Manual TLS (see CLAUDE.md "TLS/HTTPS" section) - no ACME automation,
+    # the operator uploads their own cert+key pair. tls_cert/tls_key are
+    # never returned by the API once stored (write-only, same trust model
+    # as a password field) - see schemas/sites.py SiteOut.
+    tls_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    tls_listen_port: Mapped[int] = mapped_column(Integer, default=8443, nullable=False)
+    tls_cert: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tls_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Per-IP request/connection throttling (nginx limit_req/limit_conn),
+    # independent toggles since they're separate nginx mechanisms - see
+    # render_service.render_sites(). Both return 429, reusing the fixed
+    # error page set (see waf-engine/error-pages.conf) that already had a
+    # 429 slot waiting for exactly this.
+    rate_limit_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    rate_limit_rps: Mapped[int] = mapped_column(Integer, default=20, nullable=False)
+    rate_limit_burst: Mapped[int] = mapped_column(Integer, default=40, nullable=False)
+    conn_limit_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    conn_limit_per_ip: Mapped[int] = mapped_column(Integer, default=50, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
