@@ -329,6 +329,28 @@ docker-compose.yml
   `initcol` sudah benar. Jadi pola "counter per-IP lintas request" (misal
   lockout brute-force manual lewat rule) gak bisa dipakai di sini -
   **pakai rate limiting per-site** (fitur di atas) buat kebutuhan serupa.
+- **Blocking di fase response body (phase:4) tidak bisa rapi** -
+  dikonfirmasi lewat testing langsung (debug log + request nyata, kasus
+  kebocoran error PHP/SQL DVWA): nginx mengirim status line dan header ke
+  client segera setelah diterima dari upstream, **sebelum** ModSecurity
+  selesai memeriksa seluruh response body di fase 4. Kalau rule
+  response-body (mis. CRS `RESPONSE-950..956`, deteksi kebocoran
+  error/stack trace) baru mutusin untuk block setelah itu, status code
+  yang sudah terkirim (`200 OK`) tidak bisa ditarik/diganti - nginx
+  melempar `header already sent` dan koneksi terputus paksa, bukan
+  menampilkan halaman block 403 yang rapi. Ini keterbatasan arsitektur
+  nginx+ModSecurity v3 connector, bukan bug di kode Sentinel WAF - dan
+  gak bisa diperbaiki dengan tuning `proxy_buffering`/`proxy_buffers`
+  karena masalahnya ada di header yang dikirim terpisah (dan lebih dulu)
+  dari body. Field `status`/`blocked` di audit log tetap akurat
+  merepresentasikan **keputusan ModSecurity**, bukan apa yang benar-benar
+  diterima client di jaringan. Rule response-body tetap andal untuk
+  **deteksi dan logging** (termasuk ke syslog sink) - yang gak andal
+  cuma eksekusi block-nya. Kalau blocking di fase ini mengganggu (client
+  dapet connection reset alih-alih halaman block), naikkan
+  `outbound_anomaly_score_threshold` di CRS Tuning ke nilai yang praktis
+  gak akan tercapai (mis. `1000`) supaya rule-nya tetap jalan/logging
+  tanpa pernah mencoba block.
 - **Load balancing ke banyak upstream server per site belum ada** - satu
   Site cuma bisa punya satu `upstream_url`.
 - Mode WAF (enforce/detection) masih global, belum bisa per-site.
