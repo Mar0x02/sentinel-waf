@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -292,6 +292,7 @@ export function RuleSetDetailPage() {
     warnings: TxVarWarning[];
   } | null>(null);
   const [expandedRuleId, setExpandedRuleId] = useState<number | null>(null);
+  const ruleRowRefs = useRef<Map<number, HTMLTableRowElement>>(new Map());
   const [ruleSearch, setRuleSearch] = useState("");
   const [searchingRule, setSearchingRule] = useState(false);
   const [newFilename, setNewFilename] = useState("");
@@ -329,6 +330,14 @@ export function RuleSetDetailPage() {
     refreshFiles();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Scrolls the expanded row into view - needed after a rule-ID search,
+  // where the match is often far down a 50+ rule file and would otherwise
+  // expand off-screen with no visual cue that it worked.
+  useEffect(() => {
+    if (expandedRuleId === null) return;
+    ruleRowRefs.current.get(expandedRuleId)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [expandedRuleId, rulesOf]);
 
   // Advisory-only tx.* lint, debounced while typing - never blocks Save,
   // see backend/app/services/tx_var_linter.py.
@@ -809,7 +818,12 @@ export function RuleSetDetailPage() {
                 const expanded = expandedRuleId === r.id;
                 return (
                   <Fragment key={r.id}>
-                    <tr>
+                    <tr
+                      ref={(el) => {
+                        if (el) ruleRowRefs.current.set(r.id, el);
+                        else ruleRowRefs.current.delete(r.id);
+                      }}
+                    >
                       <td>
                         <button
                           className="rule-snippet-toggle"
