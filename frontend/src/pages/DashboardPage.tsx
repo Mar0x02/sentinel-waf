@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, IpCount, RuleCount, StatsSummary, TrendPoint } from "../api/client";
+import { LoadingInline } from "../components/LoadingShield";
+import { RequestGlobe } from "../components/RequestGlobe";
 import { StatTile } from "../components/StatTile";
 import { TrendChart } from "../components/TrendChart";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -11,11 +13,15 @@ function BarList({ rows, noDataLabel }: { rows: { label: string; count: number }
     <div>
       {rows.map((row) => (
         <div className="bar-row" key={row.label}>
-          <span title={row.label}>{row.label}</span>
-          <div className="track">
-            <div className="fill" style={{ width: `${(row.count / max) * 100}%` }} />
+          <span className="bar-label" title={row.label}>
+            {row.label}
+          </span>
+          <div className="bar-track-row">
+            <div className="track">
+              <div className="fill" style={{ width: `${(row.count / max) * 100}%` }} />
+            </div>
+            <span className="bar-count">{row.count}</span>
           </div>
-          <span>{row.count}</span>
         </div>
       ))}
     </div>
@@ -47,7 +53,7 @@ export function DashboardPage() {
   }, []);
 
   if (error) return <p>{t("dashboard.loadError", { error })}</p>;
-  if (!summary) return <p>{t("common.loading")}</p>;
+  if (!summary) return <LoadingInline />;
 
   return (
     <div>
@@ -63,6 +69,8 @@ export function DashboardPage() {
         <h3>{t("dashboard.attackTrend")}</h3>
         <TrendChart data={trend} />
       </div>
+
+      <RequestGlobe />
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         <div className="card">
