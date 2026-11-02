@@ -1,12 +1,23 @@
+<div align="center">
+
+<img src="frontend/public/favicon.svg" width="72" height="72" alt="Sentinel WAF" />
+
 # Sentinel WAF
+
+**Dashboard manajemen WAF berbasis ModSecurity + OWASP CRS** - rule, TLS,
+rate limiting, dan log, semuanya dari satu dashboard web.
 
 [![Mar0x02/sentinel-waf](https://img.shields.io/badge/Mar0x02-sentinel--waf-181717?style=flat&logo=github&logoColor=white)](https://github.com/Mar0x02/sentinel-waf)
 
-Dashboard manajemen WAF berbasis **ModSecurity** - bukan WAF baru dengan
-engine sendiri, tapi layer manajemen di atas ModSecurity yang bikin
-pengelolaannya semudah tool WAF komersial (gaya SafeLine): rule, reverse
-proxy, TLS, rate limiting, dan log semuanya diatur lewat dashboard web,
-bukan edit file `.conf` manual atau `docker exec` ke container.
+</div>
+
+---
+
+Bukan WAF baru dengan engine sendiri, tapi layer manajemen di atas
+ModSecurity yang bikin pengelolaannya semudah tool WAF komersial (gaya
+SafeLine): rule, reverse proxy, TLS, rate limiting, dan log semuanya
+diatur lewat dashboard web, bukan edit file `.conf` manual atau
+`docker exec` ke container.
 
 Semua state (rule set yang diimport, rule yang aktif/nonaktif, daftar site,
 tujuan forward log) tersimpan di **PostgreSQL**, bukan cuma file - jadi
