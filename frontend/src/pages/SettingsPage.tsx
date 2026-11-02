@@ -205,9 +205,14 @@ function EngineSettingsCard() {
         </label>
       </div>
 
-      <button className="btn" style={{ marginTop: 14 }} onClick={() => setShowAdvanced(!showAdvanced)}>
-        {showAdvanced ? `▾ ${t("engine.advancedTitle")}` : `▸ ${t("engine.advancedToggle")}`}
-      </button>
+      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+        <button className="btn" onClick={() => setShowAdvanced(!showAdvanced)}>
+          {showAdvanced ? `▾ ${t("engine.advancedTitle")}` : `▸ ${t("engine.advancedToggle")}`}
+        </button>
+        <button className="btn btn-primary" onClick={save}>
+          {t("engine.save")}
+        </button>
+      </div>
       {showAdvanced && (
         <div style={{ marginTop: 10 }}>
           <p className="muted">{t("engine.advancedDesc")}</p>
@@ -219,10 +224,6 @@ function EngineSettingsCard() {
           />
         </div>
       )}
-
-      <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={save}>
-        {t("engine.save")}
-      </button>
     </div>
   );
 }
