@@ -130,7 +130,12 @@ def syslog_message(entry: dict) -> str:
         for tag in details.get("tags") or []:
             if not tag.startswith("attack-"):
                 continue
-            label = _CATEGORY_LABELS.get(tag, tag.removeprefix("attack-").replace("-", " ").title())
+            # Hyphen-joined, not space-joined - every word-separated field
+            # in this format is guaranteed space-free except the ones
+            # explicitly quoted (user_agent, matched_data, uri), and an
+            # unrecognized future attack-* tag shouldn't be the one to
+            # break that guarantee.
+            label = _CATEGORY_LABELS.get(tag, "-".join(w.title() for w in tag.removeprefix("attack-").split("-")))
             if label not in categories:
                 categories.append(label)
 
@@ -152,7 +157,7 @@ def syslog_message(entry: dict) -> str:
         f"client={tx.get('client_ip')}",
         f"host={request.get('hostname') or _header(headers, 'host') or '-'}",
         f"method={request.get('method')}",
-        f"uri={request.get('uri')}",
+        f'uri="{_sanitize(request.get("uri")) or "-"}"',
         f"status={status}",
         f'user_agent="{_sanitize(_header(headers, "user-agent")) or "-"}"',
         f"severity={_SEVERITY_LABELS.get(worst_severity, worst_severity or '-')}",
