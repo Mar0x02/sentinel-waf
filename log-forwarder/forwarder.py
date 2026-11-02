@@ -20,6 +20,37 @@ OFFSETS_PATH = Path("/state/offsets.json")
 POLL_SECONDS = 2
 SINK_RELOAD_EVERY = 5  # in poll cycles
 DISCORD_MAX_FIELDS = 10  # Discord embeds allow up to 25; keep messages short
+MATCHED_DATA_MAX_LEN = 300  # keep the syslog line single-line and bounded
+
+# ModSecurity logs severity as a raw syslog-style number, lower = worse -
+# same mapping as frontend/src/pages/LogsPage.tsx's SEVERITY_LABELS.
+_SEVERITY_LABELS = {
+    "0": "EMERGENCY",
+    "1": "ALERT",
+    "2": "CRITICAL",
+    "3": "ERROR",
+    "4": "WARNING",
+    "5": "NOTICE",
+    "6": "INFO",
+    "7": "DEBUG",
+}
+
+# Same attack-* tag convention as backend/app/services/attack_categories.py -
+# duplicated (not imported) because this sidecar is stdlib-only and has no
+# access to the backend's Python package. Short labels here on purpose,
+# unlike the dashboard's fuller names, since this rides a single syslog line.
+_CATEGORY_LABELS = {
+    "attack-sqli": "SQLi",
+    "attack-xss": "XSS",
+    "attack-rce": "RCE",
+    "attack-lfi": "LFI",
+    "attack-rfi": "RFI",
+    "attack-protocol": "Protocol",
+    "attack-disclosure": "Disclosure",
+    "attack-dos": "DoS",
+    "attack-reputation-scanner": "Reputation-Scanner",
+    "attack-reputation-ip": "Reputation-IP",
+}
 
 
 def load_sinks() -> list[dict]:
@@ -53,21 +84,84 @@ def is_blocked(entry: dict) -> bool:
     return tx.get("response", {}).get("http_code") == 403
 
 
+def _header(headers: dict, name: str) -> str | None:
+    name = name.lower()
+    for key, value in headers.items():
+        if isinstance(key, str) and key.lower() == name:
+            return value
+    return None
+
+
+def _sanitize(value, max_len: int = MATCHED_DATA_MAX_LEN) -> str | None:
+    # Collapses embedded newlines/whitespace (would otherwise break the
+    # syslog line into multiple framed messages) and drops double-quotes
+    # (the field itself is quoted) rather than escaping them - this is a
+    # log line, not something meant to round-trip losslessly.
+    if not value:
+        return None
+    cleaned = " ".join(str(value).split()).replace('"', "'")
+    if len(cleaned) > max_len:
+        cleaned = cleaned[: max_len - 3] + "..."
+    return cleaned or None
+
+
 def syslog_message(entry: dict) -> str:
     tx = entry.get("transaction", {})
     request = tx.get("request", {})
     response = tx.get("response", {})
     messages = tx.get("messages", [])
+    headers = request.get("headers") or {}
+
     rule_ids = ",".join(
         str(m.get("details", {}).get("ruleId")) for m in messages if m.get("details", {}).get("ruleId")
     )
+
+    # Rules that represent an actual attack type (carry an attack-* tag) -
+    # excludes meta/summary rules like the inbound-anomaly-score rule
+    # (949110), which has its own near-meaningless severity/no matched
+    # data and would otherwise win "worst severity" despite not being an
+    # attack match itself.
+    attack_matches = [
+        m.get("details", {}) for m in messages if any(t.startswith("attack-") for t in m.get("details", {}).get("tags") or [])
+    ]
+
+    categories: list[str] = []
+    for details in attack_matches:
+        for tag in details.get("tags") or []:
+            if not tag.startswith("attack-"):
+                continue
+            label = _CATEGORY_LABELS.get(tag, tag.removeprefix("attack-").replace("-", " ").title())
+            if label not in categories:
+                categories.append(label)
+
+    worst_severity = None
+    matched_data = None
+    if attack_matches:
+        worst = min(attack_matches, key=lambda d: int(d["severity"]) if d.get("severity") is not None else 9)
+        worst_severity = worst.get("severity")
+        # The value that actually tripped the worst match - the thing
+        # that's useful for a POST attack, where the URI alone (unlike a
+        # GET with the payload in the query string) shows nothing.
+        matched_data = _sanitize(worst.get("data"))
+
     status = response.get("http_code")
     blocked = "blocked" if is_blocked(entry) else "detected"
-    return (
-        f"waf[{blocked}] client={tx.get('client_ip')} "
-        f"method={request.get('method')} uri={request.get('uri')} "
-        f"status={status} rules={rule_ids or '-'}"
-    )
+
+    parts = [
+        f"waf[{blocked}]",
+        f"client={tx.get('client_ip')}",
+        f"host={request.get('hostname') or _header(headers, 'host') or '-'}",
+        f"method={request.get('method')}",
+        f"uri={request.get('uri')}",
+        f"status={status}",
+        f'user_agent="{_sanitize(_header(headers, "user-agent")) or "-"}"',
+        f"severity={_SEVERITY_LABELS.get(worst_severity, worst_severity or '-')}",
+        f"category={','.join(categories) or '-'}",
+        f"rules={rule_ids or '-'}",
+    ]
+    if matched_data:
+        parts.append(f'matched_data="{matched_data}"')
+    return " ".join(parts)
 
 
 def send_to_sink(sink: dict, message: str) -> None:
