@@ -5,6 +5,27 @@ import { api, AuditLogEntry } from "../api/client";
 import { CATEGORY_COLORS } from "../components/CategoryTrendChart";
 import { useLanguage } from "../i18n/LanguageContext";
 
+// ModSecurity logs severity as a raw syslog-style number - lower is worse
+// (0=Emergency, 1=Alert, 2=Critical, ...), the opposite of what "severity
+// 2" reads like at a glance. Shown as a label so it doesn't look like a
+// minor/low-priority match.
+const SEVERITY_LABELS: Record<string, string> = {
+  "0": "EMERGENCY",
+  "1": "ALERT",
+  "2": "CRITICAL",
+  "3": "ERROR",
+  "4": "WARNING",
+  "5": "NOTICE",
+  "6": "INFO",
+  "7": "DEBUG",
+};
+
+function severityLabel(severity: string | null): string {
+  if (!severity) return "-";
+  const label = SEVERITY_LABELS[severity];
+  return label ? `${label} (${severity})` : severity;
+}
+
 export function LogsPage() {
   const { t } = useLanguage();
   const [searchParams] = useSearchParams();
@@ -158,7 +179,7 @@ export function LogsPage() {
                                       {m.message ?? ""}
                                     </div>
                                     <div className="log-terminal-line log-terminal-indent log-terminal-comment">
-                                      {t("logs.matchSeverity")}={m.severity ?? "-"} {t("logs.matchTags")}=
+                                      {t("logs.matchSeverity")}={severityLabel(m.severity)} {t("logs.matchTags")}=
                                       {m.tags.join(",") || "-"}
                                     </div>
                                     {m.data && (
