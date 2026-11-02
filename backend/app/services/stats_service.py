@@ -1,7 +1,9 @@
 from collections import Counter
 
 from app.config import Settings
-from app.schemas.stats import IpCount, RuleCount, SeverityCount, StatsSummary, TrendPoint
+from app.schemas.stats import CountryCount, IpCount, RuleCount, SeverityCount, StatsSummary, TrendPoint
+from app.services import geoip_service
+from app.services.country_centroids import COUNTRY_CENTROIDS
 from app.services.log_service import load_entries
 
 
@@ -67,3 +69,43 @@ def get_trend(settings: Settings) -> list[TrendPoint]:
         TrendPoint(bucket=bucket, total=total, blocked=blocked_counts.get(bucket, 0))
         for bucket, total in sorted(totals.items())
     ]
+
+
+def get_country_counts(settings: Settings, limit: int = 50) -> list[CountryCount]:
+    """Request counts per country, for the dashboard's request globe.
+    Private/reserved/unresolvable client IPs (geoip_service.lookup_country
+    returning None) are skipped entirely - there's no country to plot them
+    under."""
+    entries = load_entries(settings)
+    counts: Counter[str] = Counter()
+    blocked_counts: Counter[str] = Counter()
+    names: dict[str, str] = {}
+    for entry in entries:
+        if not entry.client_ip:
+            continue
+        resolved = geoip_service.lookup_country(entry.client_ip)
+        if resolved is None:
+            continue
+        code, name = resolved
+        counts[code] += 1
+        names[code] = name
+        if entry.blocked:
+            blocked_counts[code] += 1
+
+    results = []
+    for code, count in counts.most_common(limit):
+        centroid = COUNTRY_CENTROIDS.get(code)
+        if centroid is None:
+            continue
+        lat, lng = centroid
+        results.append(
+            CountryCount(
+                country_code=code,
+                country_name=names[code],
+                lat=lat,
+                lng=lng,
+                count=count,
+                blocked_count=blocked_counts.get(code, 0),
+            )
+        )
+    return results

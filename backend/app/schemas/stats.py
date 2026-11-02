@@ -28,3 +28,12 @@ class TrendPoint(BaseModel):
     bucket: str
     total: int
     blocked: int
+
+
+class CountryCount(BaseModel):
+    country_code: str
+    country_name: str
+    lat: float
+    lng: float
+    count: int
+    blocked_count: int
