@@ -19,7 +19,7 @@ type ViewAllKind = "categories" | "rules" | "ips";
 // initial page load with data most views never need.
 function ViewAllButton({ onClick, t }: { onClick: () => void; t: (key: string) => string }) {
   return (
-    <button className="btn" style={{ marginLeft: "auto" }} onClick={onClick}>
+    <button className="btn" onClick={onClick}>
       {t("dashboard.viewAll")}
     </button>
   );
@@ -195,7 +195,7 @@ export function DashboardPage() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         <div className="card">
           <div style={{ display: "flex", alignItems: "center" }}>
-            <h3>{t("dashboard.topRules")}</h3>
+            <h3 style={{ marginRight: "auto" }}>{t("dashboard.topRules")}</h3>
             <ViewAllButton t={t} onClick={() => openViewAll("rules")} />
           </div>
           <BarList
@@ -209,7 +209,7 @@ export function DashboardPage() {
         </div>
         <div className="card">
           <div style={{ display: "flex", alignItems: "center" }}>
-            <h3>{t("dashboard.topIps")}</h3>
+            <h3 style={{ marginRight: "auto" }}>{t("dashboard.topIps")}</h3>
             <ViewAllButton t={t} onClick={() => openViewAll("ips")} />
           </div>
           <BarList
