@@ -107,6 +107,37 @@ WAF tanpa perlu masuk ke container sama sekali.
   aktifin) buat nulis directive ModSecurity mentah apa aja yang belum
   ke-cover field biasa - kalau syntax-nya salah, WAF otomatis tetap pakai
   config lama (gak down), tinggal dicek & diperbaiki.
+- **Access Control (Allowlist/Blocklist IP)** - tab terpisah buat kelola
+  IP/CIDR yang mau di-whitelist (bypass semua rule, termasuk CRS, buat IP
+  itu) atau blacklist (langsung ditolak 403 sebelum rule lain jalan).
+  Dipisah jadi 2 tab (Blacklist/Whitelist) biar gak campur, nambah lewat 1
+  tombol "Add" yang buka modal. Tiap IP di daftar ada kolom "Hits" yang
+  langsung link ke tab **Logs** yang udah difilter ke IP itu - bisa liat
+  detail lengkap tiap request (jam, URI, method, header, User-Agent,
+  payload yang match rule). Mendukung CIDR range (bukan cuma 1 IP), karena
+  operator `@ipMatch` ModSecurity native support itu.
+- **Anti-Bot (4 metode, per-site, bisa dikombinasi)** - tab khusus: pilih
+  site, lalu ceklis metode mana yang mau dipasang buat site itu.
+  - *JS Cookie Challenge* - pengunjung baru lihat halaman "Checking your
+    browser..." sebentar, cookie di-set lewat JavaScript lalu reload.
+    Nahan bot script sederhana (curl, `requests`) yang gak jalanin JS;
+    gak nahan headless browser yang beneran eksekusi JS.
+  - *Honeypot Checkbox* - checkbox umpan tersembunyi (CSS, bukan
+    `type="hidden"`) di halaman challenge. Manusia cuma lihat/ceklis
+    checkbox yang asli; bot yang asal ceklis semua checkbox ke-trap.
+    Butuh JS Cookie Challenge aktif dulu (checkbox-nya numpang di halaman
+    itu).
+  - *Honeypot Path* - decoy path yang umum di-probe scanner/crawler
+    (`.env`, `.git/config`, `wp-login.php`, `phpmyadmin/`,
+    `admin/login.php`). Siapa pun yang hit salah satu langsung ke-trap.
+  - *Block Bad User-Agent* - tolak request dengan User-Agent kosong atau
+    yang dikenal scripted client (`curl`, `python-requests`, `scrapy`,
+    dst). Paling murah tapi paling gampang di-spoof dari 4 metode ini.
+  
+  Kedua metode honeypot berbagi mekanisme trap yang sama: begitu ke-trip,
+  IP itu langsung ditolak di **seluruh** request ke site tsb (bukan cuma
+  path/checkbox yang nge-trigger) selama 24 jam - lihat bagian
+  Keterbatasan soal di mana trap list ini disimpan.
 
 ## Arsitektur
 
@@ -329,6 +360,24 @@ docker-compose.yml
   `initcol` sudah benar. Jadi pola "counter per-IP lintas request" (misal
   lockout brute-force manual lewat rule) gak bisa dipakai di sini -
   **pakai rate limiting per-site** (fitur di atas) buat kebutuhan serupa.
+  Ini juga alasan fitur Anti-Bot (lihat di bawah) nyimpen trap list-nya
+  sendiri di file, bukan lewat ModSecurity collection.
+- **Anti-Bot bukan CAPTCHA** - 3 dari 4 metodenya (JS Cookie Challenge,
+  Honeypot Checkbox, Honeypot Path) adalah friction filter terhadap bot
+  generik/naive (script, crawler/scanner otomatis) - bukan proof-of-human.
+  Bot yang beneran jalanin JS (headless browser) atau yang ditulis khusus
+  buat nargetin 1 situs tertentu (baca source, tau mana field yang
+  disembunyikan) bisa lolos dari semua metode ini. Metode ke-4 (Block Bad
+  User-Agent) malah paling gampang dilewatin - tinggal set User-Agent yang
+  keliatan normal.
+- **Trap list Anti-Bot (honeypot) tersimpan per-container, bukan di
+  Postgres** - konsekuensi langsung dari keterbatasan persistent collection
+  di atas: IP yang ke-trap disimpan di file lokal `waf-engine`, bukan di
+  database. Efeknya: (1) trap list **reset total kalau container
+  `waf-engine` di-restart** - IP yang udah ke-trap sebelumnya otomatis
+  bersih lagi, (2) IP yang ke-trap **gak muncul** di tab Access Control -
+  itu daftar manual yang disimpan di Postgres, mekanismenya beda dan
+  terpisah dari trap otomatis ini.
 - **Blocking di fase response body (phase:4) tidak bisa rapi** -
   dikonfirmasi lewat testing langsung (debug log + request nyata, kasus
   kebocoran error PHP/SQL DVWA): nginx mengirim status line dan header ke
