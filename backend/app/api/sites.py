@@ -5,7 +5,7 @@ from app.auth import require_write_access
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.models import Site
-from app.schemas.sites import EnabledPatch, SiteCreate, SiteOut, SiteUpdate
+from app.schemas.sites import AntiBotUpdate, EnabledPatch, SiteCreate, SiteOut, SiteUpdate
 from app.services import render_service
 from app.services.tls_service import expiry_from_pem
 
@@ -31,6 +31,10 @@ def _site_out(site: Site) -> SiteOut:
         rate_limit_burst=site.rate_limit_burst,
         conn_limit_enabled=site.conn_limit_enabled,
         conn_limit_per_ip=site.conn_limit_per_ip,
+        bot_challenge_enabled=site.bot_challenge_enabled,
+        honeypot_checkbox_enabled=site.honeypot_checkbox_enabled,
+        honeypot_path_enabled=site.honeypot_path_enabled,
+        block_bad_user_agents=site.block_bad_user_agents,
     )
 
 
@@ -98,6 +102,24 @@ def toggle_site(
     if site is None:
         raise HTTPException(404, "Site not found")
     site.enabled = payload.enabled
+    db.commit()
+    render_service.render_sites(db, settings)
+    return _site_out(site)
+
+
+@router.patch("/{site_id}/anti-bot", response_model=SiteOut)
+def update_anti_bot(
+    site_id: int,
+    payload: AntiBotUpdate,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    _=Depends(require_write_access),
+):
+    site = db.get(Site, site_id)
+    if site is None:
+        raise HTTPException(404, "Site not found")
+    for key, value in payload.model_dump().items():
+        setattr(site, key, value)
     db.commit()
     render_service.render_sites(db, settings)
     return _site_out(site)

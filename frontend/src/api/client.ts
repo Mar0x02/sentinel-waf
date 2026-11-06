@@ -133,6 +133,17 @@ export interface Site {
   rate_limit_burst: number;
   conn_limit_enabled: boolean;
   conn_limit_per_ip: number;
+  bot_challenge_enabled: boolean;
+  honeypot_checkbox_enabled: boolean;
+  honeypot_path_enabled: boolean;
+  block_bad_user_agents: boolean;
+}
+
+export interface AntiBotSettings {
+  bot_challenge_enabled: boolean;
+  honeypot_checkbox_enabled: boolean;
+  honeypot_path_enabled: boolean;
+  block_bad_user_agents: boolean;
 }
 
 export interface SitePayload {
@@ -152,6 +163,10 @@ export interface SitePayload {
   rate_limit_burst: number;
   conn_limit_enabled: boolean;
   conn_limit_per_ip: number;
+  bot_challenge_enabled: boolean;
+  honeypot_checkbox_enabled: boolean;
+  honeypot_path_enabled: boolean;
+  block_bad_user_agents: boolean;
 }
 
 export interface LogSink {
@@ -266,6 +281,48 @@ export function setUnauthorizedHandler(handler: () => void) {
   onUnauthorized = handler;
 }
 
+// Thrown by request() on a non-2xx response. Extends Error so every
+// existing `toast.error(String(e))` call site (46 of them) keeps working
+// unchanged - .message is already the clean combined text. `fields` is the
+// extra bit a form can opt into reading to highlight exactly which input
+// was rejected (see styles.css's .input-error and SitesPage.tsx for the
+// first use of it) - most call sites just ignore it.
+export class ApiError extends Error {
+  fields: Record<string, string>;
+
+  constructor(message: string, fields: Record<string, string>) {
+    super(message);
+    this.name = "ApiError";
+    this.fields = fields;
+  }
+}
+
+// FastAPI's error body is JSON with a `detail` field - either a plain
+// string (HTTPException(status, "message")) or, for a 422, a list of
+// Pydantic validation errors ([{loc, msg, type, ...}]). loc is like
+// ["body", "upstream_url"] for a field-level error, or just ["body"] for
+// a whole-model validator (e.g. honeypot_checkbox_enabled requiring
+// bot_challenge_enabled) - "body"/"query"/"path" are dropped since they're
+// never a real field name.
+function parseErrorDetail(detail: unknown): { message: string | null; fields: Record<string, string> } {
+  const fields: Record<string, string> = {};
+  if (typeof detail === "string") return { message: detail, fields };
+  if (Array.isArray(detail)) {
+    const parts = detail
+      .map((item) => {
+        if (!item || typeof item !== "object" || !("msg" in item)) return null;
+        const loc = Array.isArray((item as { loc?: unknown[] }).loc) ? (item as { loc: unknown[] }).loc : [];
+        const field = loc.filter((p) => typeof p === "string" && !["body", "query", "path"].includes(p)).join(".");
+        const msg = String((item as { msg: unknown }).msg);
+        if (field) fields[field] = msg;
+        return field ? `${field}: ${msg}` : msg;
+      })
+      .filter((s): s is string => Boolean(s));
+    return { message: parts.length > 0 ? parts.join("; ") : null, fields };
+  }
+  return { message: null, fields };
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = localStorage.getItem(TOKEN_STORAGE_KEY);
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -282,7 +339,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`${res.status} ${res.statusText}: ${body}`);
+    let message: string | null = null;
+    let fields: Record<string, string> = {};
+    try {
+      ({ message, fields } = parseErrorDetail(JSON.parse(body).detail));
+    } catch {
+      // Not JSON (e.g. a proxy's own HTML error page) - fall through to the raw-body fallback below.
+    }
+    throw new ApiError(message ?? `${res.status} ${res.statusText}: ${body}`, fields);
   }
   if (res.status === 204) return undefined as T;
   return res.json();
@@ -348,6 +412,24 @@ export const engineSettingsApi = {
   get: () => request<EngineSettings>("/api/engine-settings"),
   update: (payload: Omit<EngineSettings, "updated_at">) =>
     request<EngineSettings>("/api/engine-settings", { method: "PUT", body: JSON.stringify(payload) }),
+};
+
+export interface IpRule {
+  id: number;
+  ip: string;
+  action: "allow" | "block";
+  note: string | null;
+  enabled: boolean;
+  created_at: string;
+}
+
+export const ipRulesApi = {
+  list: () => request<IpRule[]>("/api/ip-rules"),
+  create: (ip: string, action: "allow" | "block", note: string) =>
+    request<IpRule>("/api/ip-rules", { method: "POST", body: JSON.stringify({ ip, action, note: note || null }) }),
+  toggle: (id: number, enabled: boolean) =>
+    request<IpRule>(`/api/ip-rules/${id}`, { method: "PATCH", body: JSON.stringify({ enabled }) }),
+  delete: (id: number) => request<void>(`/api/ip-rules/${id}`, { method: "DELETE" }),
 };
 
 export const discordApi = {
@@ -473,6 +555,8 @@ export const api = {
   toggleSite: (id: number, enabled: boolean) =>
     request<Site>(`/api/sites/${id}`, { method: "PATCH", body: JSON.stringify({ enabled }) }),
   deleteSite: (id: number) => request<void>(`/api/sites/${id}`, { method: "DELETE" }),
+  updateAntiBot: (id: number, settings: AntiBotSettings) =>
+    request<Site>(`/api/sites/${id}/anti-bot`, { method: "PATCH", body: JSON.stringify(settings) }),
 
   // Log sinks
   listLogSinks: () => request<LogSink[]>("/api/log-sinks"),

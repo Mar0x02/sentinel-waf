@@ -5,7 +5,7 @@
 # itself becomes PID 1 right after docker-entrypoint.d finishes.
 set -eu
 
-mkdir -p /etc/modsecurity.d/dashboard-rules /etc/modsecurity.d/dashboard-engine-settings /etc/nginx/conf.d/dashboard-sites
+mkdir -p /etc/modsecurity.d/dashboard-rules /etc/modsecurity.d/dashboard-engine-settings /etc/modsecurity.d/dashboard-ip-rules /etc/nginx/conf.d/dashboard-sites
 
 # setup.conf.template's Include uses the glob dashboard-rules/*/*.conf (one
 # subdirectory per rule set - see render_service.py). Unlike Apache,
@@ -26,9 +26,14 @@ if [ ! -e /etc/modsecurity.d/dashboard-engine-settings/000-placeholder.conf ]; t
   echo "# Waiting for the dashboard backend to render engine settings" > /etc/modsecurity.d/dashboard-engine-settings/000-placeholder.conf
 fi
 
+# Same reasoning again - dashboard-ip-rules/*.conf is also a flat glob.
+if [ ! -e /etc/modsecurity.d/dashboard-ip-rules/000-placeholder.conf ]; then
+  echo "# Waiting for the dashboard backend to render IP rules" > /etc/modsecurity.d/dashboard-ip-rules/000-placeholder.conf
+fi
+
 (
   inotifywait -m -q -e modify,create,delete,move,close_write \
-    /etc/modsecurity.d/dashboard-rules /etc/modsecurity.d/dashboard-engine-settings /etc/nginx/conf.d/dashboard-sites 2>>/tmp/watch-reload.log |
+    /etc/modsecurity.d/dashboard-rules /etc/modsecurity.d/dashboard-engine-settings /etc/modsecurity.d/dashboard-ip-rules /etc/nginx/conf.d/dashboard-sites 2>>/tmp/watch-reload.log |
   while read -r _; do
     # Debounce: the backend's render pass writes several files per change,
     # so wait a beat for it to finish before reloading.

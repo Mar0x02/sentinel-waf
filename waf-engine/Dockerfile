@@ -9,6 +9,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends inotify-tools &
 # CLAUDE.md.
 COPY setup.conf.template /etc/nginx/templates/modsecurity.d/setup.conf.template
 
+# Overrides the vendor's own nginx.conf.template, adding load_module +
+# js_import for the per-site bot challenge (Sites page toggle) - see
+# njs/bot_challenge.js and render_service.py's _proxy_location(). Only
+# addition versus the vendor's template; everything else kept verbatim.
+COPY nginx.conf.template /etc/nginx/templates/nginx.conf.template
+COPY njs/bot_challenge.js /etc/nginx/njs/bot_challenge.js
+COPY docker-entrypoint.d/02-generate-challenge-secret.sh /docker-entrypoint.d/02-generate-challenge-secret.sh
+RUN chmod +x /docker-entrypoint.d/02-generate-challenge-secret.sh
+
 # Static include stub for per-site server blocks the dashboard renders
 # into /etc/nginx/conf.d/dashboard-sites/ - not a template, never changes.
 COPY dashboard-sites-include.conf /etc/nginx/conf.d/00-dashboard-sites.conf

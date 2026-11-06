@@ -2,6 +2,8 @@ import { Route, Routes } from "react-router-dom";
 import { useAuth } from "./auth/AuthContext";
 import { LoadingScreen } from "./components/LoadingShield";
 import { Nav } from "./components/Nav";
+import { AccessControlPage } from "./pages/AccessControlPage";
+import { AntiBotPage } from "./pages/AntiBotPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ErrorPagesPage } from "./pages/ErrorPagesPage";
 import { ForcedChangePasswordPage } from "./pages/ForcedChangePasswordPage";
@@ -30,9 +32,11 @@ export function App() {
         <Routes>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/logs" element={<LogsPage />} />
+          <Route path="/access-control" element={<AccessControlPage />} />
           <Route path="/rules" element={<RulesPage />} />
           <Route path="/rules/:ruleSetId" element={<RuleSetDetailPage />} />
           <Route path="/sites" element={<SitesPage />} />
+          <Route path="/anti-bot" element={<AntiBotPage />} />
           <Route path="/error-pages" element={<ErrorPagesPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           {isAdmin && <Route path="/team" element={<TeamPage />} />}

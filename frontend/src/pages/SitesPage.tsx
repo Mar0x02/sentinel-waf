@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { api, Site, SitePayload } from "../api/client";
+import { ApiError, api, Site, SitePayload } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { useConfirm } from "../components/ConfirmProvider";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -19,6 +19,13 @@ const emptyForm = {
   rate_limit_burst: 40,
   conn_limit_enabled: false,
   conn_limit_per_ip: 50,
+  // Anti-bot toggles are edited on the dedicated Anti-Bot page, not here -
+  // these are only carried through untouched so a plain edit of
+  // name/domain/etc via this form doesn't reset them back to off.
+  bot_challenge_enabled: false,
+  honeypot_checkbox_enabled: false,
+  honeypot_path_enabled: false,
+  block_bad_user_agents: false,
 };
 
 function readFileAsText(file: File): Promise<string> {
@@ -56,6 +63,7 @@ export function SitesPage() {
   const confirm = useConfirm();
   const [sites, setSites] = useState<Site[]>([]);
   const [form, setForm] = useState(emptyForm);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingHasCert, setEditingHasCert] = useState(false);
   const certFileRef = useRef<HTMLInputElement>(null);
@@ -80,6 +88,10 @@ export function SitesPage() {
       rate_limit_burst: form.rate_limit_burst,
       conn_limit_enabled: form.conn_limit_enabled,
       conn_limit_per_ip: form.conn_limit_per_ip,
+      bot_challenge_enabled: form.bot_challenge_enabled,
+      honeypot_checkbox_enabled: form.honeypot_checkbox_enabled,
+      honeypot_path_enabled: form.honeypot_path_enabled,
+      block_bad_user_agents: form.block_bad_user_agents,
     };
     // Only send a cert/key pair if the operator actually pasted/uploaded
     // one this time - omitting both tells the backend to keep whatever is
@@ -89,6 +101,7 @@ export function SitesPage() {
       payload.tls_cert = form.tls_cert.trim();
       payload.tls_key = form.tls_key.trim();
     }
+    setFieldErrors({});
     try {
       if (editingId !== null) {
         await api.updateSite(editingId, payload);
@@ -102,6 +115,7 @@ export function SitesPage() {
       setEditingHasCert(false);
       refresh();
     } catch (e) {
+      if (e instanceof ApiError) setFieldErrors(e.fields);
       toast.error(String(e));
     }
   }
@@ -123,6 +137,10 @@ export function SitesPage() {
       rate_limit_burst: site.rate_limit_burst,
       conn_limit_enabled: site.conn_limit_enabled,
       conn_limit_per_ip: site.conn_limit_per_ip,
+      bot_challenge_enabled: site.bot_challenge_enabled,
+      honeypot_checkbox_enabled: site.honeypot_checkbox_enabled,
+      honeypot_path_enabled: site.honeypot_path_enabled,
+      block_bad_user_agents: site.block_bad_user_agents,
     });
   }
 
@@ -207,27 +225,43 @@ export function SitesPage() {
         <h3>{editingId !== null ? t("sites.editSite") : t("sites.addSite")}</h3>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <input
+            className={fieldErrors.name ? "input-error" : ""}
             placeholder={t("sites.namePlaceholder")}
             value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            onChange={(e) => {
+              setFieldErrors({ ...fieldErrors, name: "" });
+              setForm({ ...form, name: e.target.value });
+            }}
           />
           <input
+            className={fieldErrors.domain ? "input-error" : ""}
             placeholder={t("sites.domainPlaceholder")}
             value={form.domain}
-            onChange={(e) => setForm({ ...form, domain: e.target.value })}
+            onChange={(e) => {
+              setFieldErrors({ ...fieldErrors, domain: "" });
+              setForm({ ...form, domain: e.target.value });
+            }}
           />
           <input
+            className={fieldErrors.upstream_url ? "input-error" : ""}
             placeholder={t("sites.upstreamPlaceholder")}
             style={{ flex: 1 }}
             value={form.upstream_url}
-            onChange={(e) => setForm({ ...form, upstream_url: e.target.value })}
+            onChange={(e) => {
+              setFieldErrors({ ...fieldErrors, upstream_url: "" });
+              setForm({ ...form, upstream_url: e.target.value });
+            }}
           />
           <input
+            className={fieldErrors.listen_port ? "input-error" : ""}
             type="number"
             placeholder={t("sites.listenPortPlaceholder")}
             style={{ width: 110 }}
             value={form.listen_port}
-            onChange={(e) => setForm({ ...form, listen_port: Number(e.target.value) })}
+            onChange={(e) => {
+              setFieldErrors({ ...fieldErrors, listen_port: "" });
+              setForm({ ...form, listen_port: Number(e.target.value) });
+            }}
           />
         </div>
 
@@ -384,6 +418,7 @@ export function SitesPage() {
               onClick={() => {
                 setEditingId(null);
                 setForm(emptyForm);
+                setFieldErrors({});
                 setEditingHasCert(false);
               }}
             >

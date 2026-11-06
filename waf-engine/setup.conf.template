@@ -7,6 +7,13 @@ Include /etc/modsecurity.d/modsecurity-override.conf
 # backend/app/services/render_service.py's render_engine_settings().
 Include /etc/modsecurity.d/dashboard-engine-settings/*.conf
 
+# IP allow/blocklist, managed from the dashboard's Access Control page -
+# loads before dashboard-rules so an allow-listed IP's `allow` action
+# bypasses CRS (and everything else) entirely for that request, and a
+# block-listed IP is denied before CRS ever runs. See
+# backend/app/services/render_service.py's render_ip_rules().
+Include /etc/modsecurity.d/dashboard-ip-rules/*.conf
+
 # All rule content (including OWASP CRS, once imported) is managed by the
 # dashboard backend and rendered here - see
 # backend/app/services/render_service.py and CLAUDE.md. The vendor's own

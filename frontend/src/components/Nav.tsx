@@ -1,4 +1,4 @@
-import { AlertTriangle, Github, Globe, LayoutDashboard, Languages, LogOut, ScrollText, Settings, ShieldCheck, Users } from "lucide-react";
+import { AlertTriangle, Ban, Bug, Github, Globe, LayoutDashboard, Languages, LogOut, ScrollText, Settings, ShieldCheck, Users } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -8,6 +8,8 @@ const navItems = [
   { to: "/logs", key: "nav.logs", icon: ScrollText, end: false },
   { to: "/rules", key: "nav.rules", icon: ShieldCheck, end: false },
   { to: "/sites", key: "nav.sites", icon: Globe, end: false },
+  { to: "/anti-bot", key: "nav.antiBot", icon: Bug, end: false },
+  { to: "/access-control", key: "nav.accessControl", icon: Ban, end: false },
   { to: "/error-pages", key: "nav.errorPages", icon: AlertTriangle, end: false },
   { to: "/settings", key: "nav.settings", icon: Settings, end: false },
 ] as const;

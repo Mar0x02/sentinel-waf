@@ -26,6 +26,7 @@ services:
       WAF_DISCORD_WEBHOOK_CONFIG_PATH: /render/discord/webhooks.json
       WAF_ERROR_PAGES_RENDER_DIR: /render/error-pages
       WAF_ENGINE_SETTINGS_RENDER_DIR: /render/engine-settings
+      WAF_IP_RULES_RENDER_DIR: /render/ip-rules
       WAF_AUDIT_LOG_DIR: /data/logs
       WAF_AUDIT_LOG_FORMAT: modsec_v3_json
     volumes:
@@ -35,6 +36,7 @@ services:
       - discord-config:/render/discord
       - error-pages-render:/render/error-pages
       - engine-settings-render:/render/engine-settings
+      - ip-rules-render:/render/ip-rules
       - audit-logs:/data/logs:ro
     ports:
       - "8000:8000"
@@ -66,6 +68,7 @@ services:
       - sites-render:/etc/nginx/conf.d/dashboard-sites
       - error-pages-render:/usr/share/nginx/sentinel-error-pages
       - engine-settings-render:/etc/modsecurity.d/dashboard-engine-settings
+      - ip-rules-render:/etc/modsecurity.d/dashboard-ip-rules
       - audit-logs:/var/log/modsecurity/audit
     ports:
       - "8080:8080"
@@ -93,5 +96,6 @@ volumes:
   discord-config:
   error-pages-render:
   engine-settings-render:
+  ip-rules-render:
   audit-logs:
   log-forwarder-state:

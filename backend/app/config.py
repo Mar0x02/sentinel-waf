@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     # body inspection limits, etc.) - see models.EngineSettings.
     engine_settings_render_dir: Path = Path("/render/engine-settings")
 
+    # Shared volume (also mounted into the waf-engine container) holding
+    # the rendered IP allow/blocklist - see models.IpRule and
+    # app/services/render_service.render_ip_rules().
+    ip_rules_render_dir: Path = Path("/render/ip-rules")
+
     # Directory containing ModSecurity audit log file(s) to read from.
     audit_log_dir: Path = Path("/data/logs")
 

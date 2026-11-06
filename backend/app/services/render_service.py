@@ -6,7 +6,19 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.default_engine_settings import DEFAULT_ADVANCED_CONFIG
 from app.default_error_pages import DEFAULT_ERROR_PAGES
-from app.models import DiscordWebhook, EngineSettings, ErrorPage, FileKind, LogSink, Rule, RuleFile, RuleSet, Site
+from app.models import (
+    DiscordWebhook,
+    EngineSettings,
+    ErrorPage,
+    FileKind,
+    IpRule,
+    IpRuleAction,
+    LogSink,
+    Rule,
+    RuleFile,
+    RuleSet,
+    Site,
+)
 from app.services.importer import BASE_TUNING_RULE_SET_SLUG
 
 
@@ -88,8 +100,7 @@ def render_rules(db: Session, settings: Settings) -> None:
         (overrides_dir / "010-base-tuning.conf").write_text(base_tuning_file.content)
 
 
-_PROXY_LOCATION = """    location / {{
-{limit_directives}        client_max_body_size 0;
+_PROXY_BODY = """{limit_directives}        client_max_body_size 0;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -107,8 +118,74 @@ _PROXY_LOCATION = """    location / {{
         # 953100' line with no data-leakage match, despite the plaintext
         # body visibly containing a PHP stack trace.
         proxy_set_header Accept-Encoding "";
-        proxy_pass {upstream_url};
-    }}"""
+        proxy_pass {upstream_url};"""
+
+
+# Common paths generic recon tools/scanners probe on virtually any host
+# without needing any hint or link first (unlike the decoy checkbox, which
+# only a form-filling bot would ever stumble onto) - see the Anti-Bot menu's
+# "Honeypot Path" toggle. Any hit traps the source IP (see bot_challenge.js's
+# trapHit()). Operators whose real backend genuinely serves one of these
+# (e.g. an actual WordPress install at /wp-login.php) shouldn't enable this.
+_HONEYPOT_PATHS = (
+    "/.env",
+    "/.git/config",
+    "/wp-login.php",
+    "/phpmyadmin/",
+    "/admin/login.php",
+)
+
+# Matches a handful of common scripted-client User-Agents (or an empty one)
+# - a cheap, spoofable filter (see Anti-Bot menu description), not a strong
+# one. Pure nginx, no ModSecurity/njs involved.
+_BAD_USER_AGENT_RE = r"(?i)(curl|wget|python-requests|python-urllib|scrapy|go-http-client|^$)"
+
+
+def _bad_user_agent_directive(site: Site) -> str:
+    if not site.block_bad_user_agents:
+        return ""
+    return f'    if ($http_user_agent ~* "{_BAD_USER_AGENT_RE}") {{\n        return 403;\n    }}\n\n'
+
+
+def _proxy_location(site: Site, limit_directives: str) -> str:
+    """Builds the `location / { ... }` block (plus any decoy locations the
+    Anti-Bot menu's honeypot toggles need) that actually proxy_passes to
+    the site's upstream.
+
+    Whenever any Anti-Bot feature is on, `location /` becomes an njs
+    content handler (bot_challenge.js's check()) instead of a direct
+    proxy_pass - it gates on the shared trap list (see trapHit()/
+    isTrapped() in that file) first, regardless of which specific
+    feature(s) are enabled, then either serves the JS cookie challenge
+    (bot_challenge_enabled) or passes straight through. The real
+    proxy_pass always moves into an internal-only named location
+    (`@sentinel_backend`) reached via r.internalRedirect() once a request
+    is allowed through - this is also where rate/conn limit directives
+    live, so they throttle real upstream traffic, not challenge/decoy
+    responses. honeypot_checkbox_enabled has no location of its own -
+    it's a flag the challenge page itself reads (`$sentinel_honeypot_checkbox`)
+    to decide whether to render the decoy-checkbox variant.
+    """
+    body = _PROXY_BODY.format(upstream_url=site.upstream_url, limit_directives=limit_directives)
+    any_bot_feature = site.bot_challenge_enabled or site.honeypot_checkbox_enabled or site.honeypot_path_enabled
+    if not any_bot_feature:
+        return f"    location / {{\n{body}\n    }}"
+
+    blocks = [
+        "    location / {\n"
+        f"        set $sentinel_bot_challenge {'1' if site.bot_challenge_enabled else '0'};\n"
+        f"        set $sentinel_honeypot_checkbox {'1' if site.honeypot_checkbox_enabled else '0'};\n"
+        "        js_content bot_challenge.check;\n"
+        "    }",
+        "    location @sentinel_backend {\n"
+        "        internal;\n"
+        f"{body}\n"
+        "    }",
+    ]
+    if site.honeypot_path_enabled:
+        for path in _HONEYPOT_PATHS:
+            blocks.append(f"    location = {path} {{\n        js_content bot_challenge.trapHit;\n    }}")
+    return "\n\n".join(blocks)
 
 
 def _rate_limit_zone_names(site: Site) -> tuple[str, str]:
@@ -195,7 +272,7 @@ server {{
 
     include includes/sentinel-error-pages.conf;
 
-{_PROXY_LOCATION.format(upstream_url=site.upstream_url, limit_directives=limit_directives)}
+{_bad_user_agent_directive(site)}{_proxy_location(site, limit_directives)}
 }}
 """
         else:
@@ -205,7 +282,7 @@ server {{
 
     include includes/sentinel-error-pages.conf;
 
-{_PROXY_LOCATION.format(upstream_url=site.upstream_url, limit_directives=limit_directives)}
+{_bad_user_agent_directive(site)}{_proxy_location(site, limit_directives)}
 }}
 """
         (base / f"site-{site.id}.conf").write_text(conf)
@@ -287,6 +364,46 @@ def render_engine_settings(db: Session, settings: Settings) -> None:
     (base / "999-advanced.conf").write_text("\n".join(advanced_lines) + "\n")
 
 
+def render_ip_rules(db: Session, settings: Settings) -> None:
+    """Renders the IP allow/blocklist as SecRule directives on REMOTE_ADDR.
+    setup.conf.template Includes this directory before dashboard-rules, so
+    an allow-listed IP's `allow` action short-circuits every later phase -
+    including CRS - for that request (a real bypass, not just "don't
+    block"). A block-listed IP is denied here too, before CRS ever runs.
+
+    Both use `log,auditlog` rather than `nolog` so ModSecurity's
+    RelevantOnly audit engine still records every hit even though an
+    allow-listed request is otherwise never "relevant" (status 200,
+    nothing else matched) - see CLAUDE.md's audit log notes. That's what
+    lets the Access Control page show real per-IP hit counts/detail
+    straight from the existing Logs machinery, with no separate storage.
+
+    Rule IDs are derived from the row's own primary key in two disjoint
+    ranges (990000s = block, 991000s = allow) purely so a matched rule ID
+    on the Logs page says which list it came from at a glance.
+    """
+    base = settings.ip_rules_render_dir
+    _clear_dir(base)
+    lines = ["# Managed by the dashboard - do not edit directly, see the Access Control page."]
+    # shortcut: ip is a unique column, so one IP can't be on both lists -
+    # overlapping CIDR ranges across different rows are never conflict-
+    # checked. Not expected to matter for a single operator's list.
+    for rule in db.query(IpRule).filter(IpRule.enabled.is_(True)).order_by(IpRule.id).all():
+        if rule.action == IpRuleAction.block:
+            lines.append(
+                f'SecRule REMOTE_ADDR "@ipMatch {rule.ip}" '
+                f'"id:{990000 + rule.id},phase:1,deny,status:403,log,auditlog,'
+                f"msg:'Blocked by IP blocklist ({rule.ip})'\""
+            )
+        else:
+            lines.append(
+                f'SecRule REMOTE_ADDR "@ipMatch {rule.ip}" '
+                f'"id:{991000 + rule.id},phase:1,log,auditlog,allow,'
+                f"msg:'Bypassed by IP allowlist ({rule.ip})'\""
+            )
+    (base / "000-ip-rules.conf").write_text("\n".join(lines) + "\n")
+
+
 def render_log_sinks(db: Session, settings: Settings) -> None:
     sinks = db.query(LogSink).filter(LogSink.enabled.is_(True)).all()
     data = [{"name": s.name, "protocol": s.protocol.value, "host": s.host, "port": s.port} for s in sinks]
@@ -308,3 +425,4 @@ def render_all(db: Session, settings: Settings) -> None:
     render_error_pages(db, settings)
     render_engine_settings(db, settings)
     render_discord_webhooks(db, settings)
+    render_ip_rules(db, settings)

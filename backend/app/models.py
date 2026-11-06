@@ -29,6 +29,11 @@ class Protocol(str, enum.Enum):
     tcp = "tcp"
 
 
+class IpRuleAction(str, enum.Enum):
+    allow = "allow"
+    block = "block"
+
+
 class RuleSet(Base):
     __tablename__ = "rule_sets"
 
@@ -139,10 +144,42 @@ class Site(Base):
     rate_limit_burst: Mapped[int] = mapped_column(Integer, default=40, nullable=False)
     conn_limit_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     conn_limit_per_ip: Mapped[int] = mapped_column(Integer, default=50, nullable=False)
+    # Anti-Bot menu (dedicated page, not the Sites form) - four independent
+    # per-site toggles, all rendered by render_service.render_sites() and
+    # enforced by waf-engine/njs/bot_challenge.js. See that file and
+    # CLAUDE.md for the mechanics and the ModSecurity v3 persistent-
+    # collection limitation that shaped the trap-persistence design.
+    bot_challenge_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Decoy checkbox on the challenge page - only meaningful (and only
+    # ever rendered) when bot_challenge_enabled is also true, enforced by
+    # schemas/sites.py's validator.
+    honeypot_checkbox_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Decoy locations for commonly-probed paths (.env, wp-login.php, ...) -
+    # see render_service.py's _HONEYPOT_PATHS.
+    honeypot_path_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    block_bad_user_agents: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class IpRule(Base):
+    """A single IP/CIDR on the allow- or blocklist (Access Control page).
+    allow bypasses every other rule (ModSecurity `allow` action - see
+    render_service.render_ip_rules()); block denies outright before any
+    site/rule content ever runs. One shared list, not per-site - matches
+    how ModSecurity itself is wired globally (see CLAUDE.md).
+    """
+
+    __tablename__ = "ip_rules"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ip: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    action: Mapped[IpRuleAction] = mapped_column(Enum(IpRuleAction), nullable=False)
+    note: Mapped[str | None] = mapped_column(String, nullable=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class LogSink(Base):
