@@ -15,17 +15,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <BrowserRouter>
           <ConfirmProvider>
             <App />
-            <Toaster
-              theme="dark"
-              position="bottom-right"
-              toastOptions={{
-                style: {
-                  background: "var(--surface-1)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text-primary)",
-                },
-              }}
-            />
+            {/* richColors gives success/warning/error toasts their own
+                green/yellow/red background + icon instead of one flat
+                color for every toast type - a fixed toastOptions.style
+                here previously overrode that distinction entirely. */}
+            <Toaster theme="dark" position="bottom-right" richColors />
           </ConfirmProvider>
         </BrowserRouter>
       </AuthProvider>
