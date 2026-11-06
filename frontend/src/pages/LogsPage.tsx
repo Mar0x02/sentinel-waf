@@ -167,6 +167,16 @@ export function LogsPage() {
                               <span className="log-terminal-prompt">$</span> {t("logs.userAgent")}=
                               <span className="log-terminal-value">{entry.user_agent ?? "-"}</span>
                             </div>
+                            {Object.keys(entry.headers).length > 0 && (
+                              <>
+                                <div className="log-terminal-line log-terminal-comment"># {t("logs.headers")}</div>
+                                {Object.entries(entry.headers).map(([name, value]) => (
+                                  <div className="log-terminal-line log-terminal-indent" key={name}>
+                                    {name}: <span className="log-terminal-value">{value}</span>
+                                  </div>
+                                ))}
+                              </>
+                            )}
                             {entry.matches.length === 0 ? (
                               <div className="log-terminal-line log-terminal-comment"># {t("logs.noMatches")}</div>
                             ) : (

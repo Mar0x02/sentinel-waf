@@ -98,6 +98,7 @@ class ModSecV3JsonParser(AuditLogParser):
             status_code=status_code,
             blocked=blocked,
             matches=matches,
+            headers={str(k): str(v) for k, v in headers.items() if isinstance(k, str)},
         )
 
     @staticmethod

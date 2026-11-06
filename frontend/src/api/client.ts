@@ -199,6 +199,7 @@ export interface AuditLogEntry {
   status_code: number | null;
   blocked: boolean;
   matches: RuleMatch[];
+  headers: Record<string, string>;
 }
 
 export interface AuditLogPage {

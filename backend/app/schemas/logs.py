@@ -22,6 +22,7 @@ class AuditLogEntry(BaseModel):
     status_code: int | None = None
     blocked: bool = False
     matches: list[RuleMatch] = []
+    headers: dict[str, str] = {}
 
 
 class AuditLogPage(BaseModel):
