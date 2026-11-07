@@ -67,11 +67,17 @@ WAF tanpa perlu masuk ke container sama sekali.
 - **Reverse proxy (Sites)** - daftarkan domain + upstream backend dari
   dashboard, langsung jadi server block nginx yang otomatis dilindungi
   oleh rule yang aktif.
-- **HTTPS per-site (upload certificate manual)** - aktifkan HTTPS buat
-  site tertentu dengan upload certificate + private key sendiri (paste
-  langsung atau upload file `.crt`/`.key`). Port HTTP otomatis redirect
-  301 ke HTTPS begitu diaktifkan. Belum ada otomasi Let's Encrypt - lihat
-  bagian Keterbatasan.
+- **HTTPS per-site, manual atau otomatis** - aktifkan HTTPS buat site
+  tertentu dengan upload certificate + private key sendiri (paste langsung
+  atau upload file `.crt`/`.key`), **atau** klik "Generate via Let's
+  Encrypt" buat dapetin certificate otomatis lewat ACME v2 (challenge
+  `dns-01`): dashboard kasih tau TXT record yang harus ditambahin di DNS
+  provider kamu, lalu auto-cek tiap beberapa detik sampai valid dan
+  certificate-nya langsung kepasang sendiri - gak perlu `certbot` atau
+  akses server manual. "Renew" tombolnya sama kayak "Generate", dan badge
+  HTTPS di tabel Sites nunjukin sisa hari sebelum expired. Port HTTP
+  otomatis redirect 301 ke HTTPS begitu diaktifkan. Keterbatasan otomasi
+  ini ada di bagian Keterbatasan di bawah.
 - **Rate limiting per-site** - batasi request/detik per IP (dengan burst
   allowance) dan/atau jumlah koneksi bersamaan per IP, per site. Request
   yang kelebihan dapat response `429` (pakai custom error page sendiri).
@@ -351,8 +357,23 @@ docker-compose.yml
 
 ## Keterbatasan saat ini
 
-- **TLS otomatis (Let's Encrypt/ACME) belum ada** - HTTPS per-site baru
-  bisa lewat upload certificate manual (lihat Fitur di atas).
+- **Otomasi TLS cuma ke Let's Encrypt, provider ACME lain belum didukung** -
+  ZeroSSL (dan kebanyakan CA ACME lain) mewajibkan *External Account
+  Binding* (proses signup/verifikasi email terpisah di situs mereka buat
+  dapet `eab_kid`/`eab_hmac_key`) yang belum diimplementasikan di dashboard
+  ini. Mau pakai ZeroSSL atau CA lain tetap bisa, lewat jalur upload
+  certificate manual (lihat Fitur di atas).
+- **Gak ada auto-renewal terjadwal** - certificate dari Let's Encrypt
+  expired tiap 90 hari, dan dashboard **gak** otomatis perpanjang sendiri
+  pas mendekati expired - operator yang harus klik "Renew via Let's
+  Encrypt" manual (badge HTTPS di tabel Sites kasih tau sisa hari sebagai
+  pengingat). Gak ada cron/scheduler di balik layar buat ini.
+- **Proses order (CSR + challenge ACME yang lagi berjalan) disimpan di
+  memori, bukan Postgres** - kalau container `backend` restart persis di
+  tengah proses nunggu DNS TXT, progress itu hilang (status otomatis
+  berubah jadi "failed", dengan pesan yang jelas) dan operator tinggal
+  klik Generate ulang - bukan kondisi yang butuh campur tangan manual ke
+  database.
 - **Persistent collection ModSecurity (`ip`/`session`/`user`) tidak bisa
   diandalkan** - dikonfirmasi lewat testing langsung (debug log + request
   nyata) bahwa engine yang dipakai (`libmodsecurity3`/ModSecurity v3)

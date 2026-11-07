@@ -169,6 +169,13 @@ export interface SitePayload {
   block_bad_user_agents: boolean;
 }
 
+export interface CertOrder {
+  status: "pending_dns" | "issued" | "failed";
+  dns_name: string;
+  dns_value: string;
+  error_message: string | null;
+}
+
 export interface LogSink {
   id: number;
   name: string;
@@ -557,6 +564,11 @@ export const api = {
   deleteSite: (id: number) => request<void>(`/api/sites/${id}`, { method: "DELETE" }),
   updateAntiBot: (id: number, settings: AntiBotSettings) =>
     request<Site>(`/api/sites/${id}/anti-bot`, { method: "PATCH", body: JSON.stringify(settings) }),
+  // Let's Encrypt dns-01 automation - startCertOrder begins/restarts (same
+  // call does both "generate" and "renew"), getCertOrderStatus is polled
+  // by the frontend until the order resolves - see backend/app/api/sites.py.
+  startCertOrder: (id: number) => request<CertOrder>(`/api/sites/${id}/cert-order`, { method: "POST" }),
+  getCertOrderStatus: (id: number) => request<CertOrder>(`/api/sites/${id}/cert-order`),
 
   // Log sinks
   listLogSinks: () => request<LogSink[]>("/api/log-sinks"),

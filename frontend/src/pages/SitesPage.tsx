@@ -1,6 +1,7 @@
+import { Check, Copy, Loader2, ShieldCheck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ApiError, api, Site, SitePayload } from "../api/client";
+import { ApiError, CertOrder, api, Site, SitePayload } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { useConfirm } from "../components/ConfirmProvider";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -37,14 +38,24 @@ function readFileAsText(file: File): Promise<string> {
   });
 }
 
+// Whole days until expiry, or null if there's no cert at all.
+function daysUntilExpiry(site: Site): number | null {
+  if (!site.cert_expires_at) return null;
+  return Math.ceil((new Date(site.cert_expires_at).getTime() - Date.now()) / 86_400_000);
+}
+
+const RENEW_SOON_DAYS = 7;
+
 function certBadge(site: Site, t: (key: string, vars?: Record<string, string | number>) => string) {
   if (!site.tls_enabled) return <span className="muted">{t("sites.tlsOff")}</span>;
   if (!site.has_cert) return <span className="tls-badge tls-badge-warn">{t("sites.tlsMissingCert")}</span>;
-  const expires = site.cert_expires_at ? new Date(site.cert_expires_at) : null;
-  const expired = expires !== null && expires.getTime() < Date.now();
+  const days = daysUntilExpiry(site);
+  const expired = days !== null && days < 0;
+  const expiringSoon = days !== null && days >= 0 && days <= RENEW_SOON_DAYS;
+  const date = site.cert_expires_at ? new Date(site.cert_expires_at).toLocaleDateString() : "";
   return (
-    <span className={`tls-badge ${expired ? "tls-badge-expired" : "tls-badge-ok"}`}>
-      {expired ? t("sites.tlsExpired") : t("sites.tlsValidUntil", { date: expires?.toLocaleDateString() ?? "" })}
+    <span className={`tls-badge ${expired ? "tls-badge-expired" : expiringSoon ? "tls-badge-warn" : "tls-badge-ok"}`}>
+      {expired ? t("sites.tlsExpired") : t("sites.tlsValidUntil", { date, days: days ?? 0 })}
     </span>
   );
 }
@@ -66,6 +77,26 @@ export function SitesPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingHasCert, setEditingHasCert] = useState(false);
+  const [certOrders, setCertOrders] = useState<Record<number, CertOrder>>({});
+  // Tracks the in-flight startCertOrder() call itself (opening the ACME
+  // order is a real network round-trip to Let's Encrypt, not instant) -
+  // separate from certOrders' "pending_dns" status, which only starts
+  // existing once that call has already returned.
+  const [generating, setGenerating] = useState<Record<number, boolean>>({});
+  // Which TXT value was just copied (its own text is a unique-enough key) -
+  // swaps that one row's "Copy" link to a "Copied" checkmark for a bit.
+  const [copiedValue, setCopiedValue] = useState<string | null>(null);
+  // How many times we've polled for this site's order - purely cosmetic, so
+  // the "checking..." line visibly ticks over each round instead of sitting
+  // static while the 5s timer fires in the background.
+  const [pollCount, setPollCount] = useState<Record<number, number>>({});
+  const pollTimers = useRef<Record<number, number>>({});
+
+  function copyValue(value: string) {
+    navigator.clipboard.writeText(value);
+    setCopiedValue(value);
+    window.setTimeout(() => setCopiedValue((prev) => (prev === value ? null : prev)), 1500);
+  }
   const certFileRef = useRef<HTMLInputElement>(null);
   const keyFileRef = useRef<HTMLInputElement>(null);
 
@@ -74,6 +105,67 @@ export function SitesPage() {
   }
 
   useEffect(refresh, []);
+
+  // Stop every in-flight poll on unmount - otherwise a setTimeout chain
+  // keeps firing against a torn-down component.
+  useEffect(() => {
+    return () => {
+      Object.values(pollTimers.current).forEach((id) => window.clearTimeout(id));
+    };
+  }, []);
+
+  function pollCertOrder(siteId: number) {
+    api
+      .getCertOrderStatus(siteId)
+      .then((order) => {
+        setCertOrders((prev) => ({ ...prev, [siteId]: order }));
+        setPollCount((prev) => ({ ...prev, [siteId]: (prev[siteId] ?? 0) + 1 }));
+        if (order.status === "pending_dns") {
+          pollTimers.current[siteId] = window.setTimeout(() => pollCertOrder(siteId), 5000);
+          return;
+        }
+        if (order.status === "issued") {
+          toast.success(t("sites.certIssued"));
+          refresh();
+          // The edit form's "already stored, leave blank to keep it" hint
+          // is driven by editingHasCert, captured once at startEdit() time -
+          // flip it now too, so a cert that just got auto-issued while this
+          // same form was open doesn't leave the form looking like nothing
+          // happened (the PEM textareas themselves never get filled in from
+          // the API either way - tls_cert/tls_key are write-only, same as
+          // a manually-uploaded cert's fields would be on a re-edit).
+          if (editingId === siteId) setEditingHasCert(true);
+        } else {
+          toast.error(order.error_message ?? t("sites.certFailed"));
+        }
+      })
+      .catch((e) => toast.error(String(e)));
+  }
+
+  async function generateCert(siteId: number) {
+    if (generating[siteId]) return; // already in flight - ignore a double-click
+    // An order already pending means a TXT value is out there that a DNS
+    // provider might still validate against - starting a fresh one (a new
+    // CSR + a new token) makes that one stale. Not worth blocking outright
+    // (sometimes the old one really is stuck and a restart is the fix,
+    // like a wrong DNS record), but it shouldn't happen from one accidental
+    // click, especially once this is pointed at production and each
+    // restart counts against Let's Encrypt's weekly cert limit.
+    if (certOrders[siteId]?.status === "pending_dns" && !(await confirm(t("sites.tlsRestartConfirm")))) {
+      return;
+    }
+    window.clearTimeout(pollTimers.current[siteId]);
+    setGenerating((prev) => ({ ...prev, [siteId]: true }));
+    setPollCount((prev) => ({ ...prev, [siteId]: 0 }));
+    api
+      .startCertOrder(siteId)
+      .then((order) => {
+        setCertOrders((prev) => ({ ...prev, [siteId]: order }));
+        pollTimers.current[siteId] = window.setTimeout(() => pollCertOrder(siteId), 5000);
+      })
+      .catch((e) => toast.error(String(e)))
+      .finally(() => setGenerating((prev) => ({ ...prev, [siteId]: false })));
+  }
 
   async function submit() {
     const payload: SitePayload = {
@@ -177,6 +269,21 @@ export function SitesPage() {
                       <button className="btn" onClick={() => startEdit(s)}>
                         {t("common.edit")}
                       </button>
+                      {s.tls_enabled && s.has_cert && (() => {
+                        const days = daysUntilExpiry(s);
+                        return days !== null && days <= RENEW_SOON_DAYS;
+                      })() && (
+                        <button
+                          className="btn"
+                          disabled={generating[s.id]}
+                          onClick={() => {
+                            startEdit(s);
+                            generateCert(s.id);
+                          }}
+                        >
+                          {generating[s.id] ? t("common.loading") : t("sites.tlsRenewButton")}
+                        </button>
+                      )}
                       <button
                         className="btn"
                         onClick={() =>
@@ -278,8 +385,108 @@ export function SitesPage() {
           <div className="tls-form" style={{ marginTop: 10 }}>
             <p className="muted">{t("sites.tlsDescription")}</p>
             {editingId !== null && editingHasCert && (
-              <p className="muted">{t("sites.tlsKeepExistingHint")}</p>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  background: "rgba(34, 211, 238, 0.12)",
+                  color: "#22d3ee",
+                  border: "1px solid rgba(34, 211, 238, 0.3)",
+                  borderRadius: 8,
+                  padding: "10px 14px",
+                  marginBottom: 10,
+                  fontSize: 13,
+                }}
+              >
+                <ShieldCheck size={16} style={{ flexShrink: 0 }} />
+                <span>{t("sites.tlsKeepExistingHint")}</span>
+              </div>
             )}
+
+            {editingId !== null && (
+              <div style={{ marginBottom: 12 }}>
+                <button className="btn" disabled={generating[editingId]} onClick={() => generateCert(editingId)}>
+                  {generating[editingId]
+                    ? t("common.loading")
+                    : editingHasCert
+                      ? t("sites.tlsRenewButton")
+                      : t("sites.tlsGenerateButton")}
+                </button>
+                {(certOrders[editingId]?.status === "pending_dns" || certOrders[editingId]?.status === "issued") && (
+                  <div className="log-terminal" style={{ marginTop: 10 }}>
+                    <div className="log-terminal-titlebar">
+                      <span className="log-terminal-title">dns-01 · {form.domain}</span>
+                    </div>
+                    <div className="log-terminal-body">
+                      <div className="log-terminal-line log-terminal-comment"># {t("sites.tlsPendingDns")}</div>
+                      {([
+                        ["TXT name", certOrders[editingId]!.dns_name],
+                        ["TXT value", certOrders[editingId]!.dns_value],
+                      ] as const).map(([label, value], i) => (
+                        <div
+                          className="log-terminal-line"
+                          key={label}
+                          style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: i === 0 ? 10 : 0 }}
+                        >
+                          <span className="log-terminal-prompt">$</span>
+                          <span style={{ flexShrink: 0 }}>{label}=</span>
+                          <span
+                            className="log-terminal-value"
+                            style={{ flex: 1, minWidth: 0, overflowX: "auto", whiteSpace: "pre" }}
+                          >
+                            {value}
+                          </span>
+                          <span
+                            onClick={() => copyValue(value)}
+                            style={{
+                              flexShrink: 0,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              cursor: "pointer",
+                              fontSize: 12,
+                              color: copiedValue === value ? "#22c55e" : "#22d3ee",
+                              textDecoration: copiedValue === value ? "none" : "underline",
+                            }}
+                          >
+                            {copiedValue === value ? (
+                              <>
+                                <Check size={13} /> {t("common.copied")}
+                              </>
+                            ) : (
+                              <>
+                                <Copy size={13} /> {t("common.copy")}
+                              </>
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                      {certOrders[editingId]?.status === "pending_dns" && (
+                        <div className="log-terminal-line" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <Loader2 size={13} className="login-spinner" style={{ color: "#94a3b8" }} />
+                          <span className="log-terminal-comment">
+                            {t("sites.tlsChecking", { n: pollCount[editingId] ?? 0 })}
+                          </span>
+                        </div>
+                      )}
+                      {certOrders[editingId]?.status === "issued" && (
+                        <div className="log-terminal-line" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <Check size={13} style={{ color: "#22c55e" }} />
+                          <span style={{ color: "#22c55e" }}>{t("sites.tlsDnsVerified")}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {certOrders[editingId]?.status === "failed" && (
+                  <p className="tls-badge tls-badge-expired" style={{ marginTop: 8 }}>
+                    {certOrders[editingId]!.error_message}
+                  </p>
+                )}
+              </div>
+            )}
+
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
               <label style={{ minWidth: 90 }}>{t("sites.tlsPort")}</label>
               <input

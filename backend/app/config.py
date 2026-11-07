@@ -51,6 +51,16 @@ class Settings(BaseSettings):
     # supported (e.g. Apache + mod_security2 native format).
     audit_log_format: str = "modsec_v3_json"
 
+    # ACME (Let's Encrypt) directory URL for the dns-01 automated cert flow
+    # - see app/services/acme_service.py. Override to the staging directory
+    # (https://acme-staging-v02.api.letsencrypt.org/directory) while testing,
+    # to avoid Let's Encrypt's production rate limits.
+    acme_directory_url: str = "https://acme-v02.api.letsencrypt.org/directory"
+    # Optional contact email for the ACME account (expiry reminders from the
+    # CA). Not required - Let's Encrypt accepts account registration with
+    # no contact at all.
+    acme_contact_email: str | None = None
+
     class Config:
         env_prefix = "WAF_"
         env_file = ".env"

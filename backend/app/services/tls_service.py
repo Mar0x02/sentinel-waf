@@ -1,11 +1,13 @@
 """Validation for manually-uploaded TLS cert/key pairs (Sites page).
 
-No ACME/Let's Encrypt automation - see CLAUDE.md. The operator pastes or
-uploads their own PEM cert + key; this module's only job is to reject
-garbage before it ever reaches render_service (which just writes the bytes
-to files nginx reads via ssl_certificate/ssl_certificate_key - see there
-for why no further escaping is needed, unlike a Site's domain/upstream_url
-which get interpolated into config text).
+For the automated path (Let's Encrypt dns-01), see services/acme_service.py
+- that flow writes an already-matching keypair it generated itself, so it
+skips this module entirely. This one is for the manual-paste/upload path:
+the operator's own PEM cert + key, which this module's only job is to
+reject if garbage before it ever reaches render_service (which just writes
+the bytes to files nginx reads via ssl_certificate/ssl_certificate_key -
+see there for why no further escaping is needed, unlike a Site's
+domain/upstream_url which get interpolated into config text).
 """
 
 from datetime import datetime

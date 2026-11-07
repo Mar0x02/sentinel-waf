@@ -34,6 +34,12 @@ class IpRuleAction(str, enum.Enum):
     block = "block"
 
 
+class CertOrderStatus(str, enum.Enum):
+    pending_dns = "pending_dns"
+    issued = "issued"
+    failed = "failed"
+
+
 class RuleSet(Base):
     __tablename__ = "rule_sets"
 
@@ -126,10 +132,10 @@ class Site(Base):
     upstream_url: Mapped[str] = mapped_column(String, nullable=False)
     listen_port: Mapped[int] = mapped_column(Integer, default=8080, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    # Manual TLS (see CLAUDE.md "TLS/HTTPS" section) - no ACME automation,
-    # the operator uploads their own cert+key pair. tls_cert/tls_key are
-    # never returned by the API once stored (write-only, same trust model
-    # as a password field) - see schemas/sites.py SiteOut.
+    # TLS cert+key pair, either pasted/uploaded manually or filled in by a
+    # completed Let's Encrypt order (see services/acme_service.py and
+    # CertOrder below). Never returned by the API once stored (write-only,
+    # same trust model as a password field) - see schemas/sites.py SiteOut.
     tls_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     tls_listen_port: Mapped[int] = mapped_column(Integer, default=8443, nullable=False)
     tls_cert: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -162,6 +168,32 @@ class Site(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class CertOrder(Base):
+    """Tracks the last Let's Encrypt (ACME, dns-01) order attempted for a
+    Site - see services/acme_service.py. One row per site (site_id is the
+    primary key), overwritten on every new Generate/Renew click rather than
+    kept as history.
+
+    Only the lightweight bits an operator needs to see/copy live here. The
+    CSR private key and the live acme-python order/challenge objects are
+    kept in acme_service._PENDING (in-memory, this process only) - never
+    persisted. shortcut: a backend restart mid-order loses that state; the
+    next status poll finds nothing in _PENDING and flips this row to
+    failed, and the operator just clicks Generate again. Upgrade to a
+    resumable persisted order only if restarts-during-validation turn out
+    to be a real problem in practice.
+    """
+
+    __tablename__ = "cert_orders"
+
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), primary_key=True)
+    status: Mapped[CertOrderStatus] = mapped_column(Enum(CertOrderStatus), nullable=False)
+    dns_name: Mapped[str] = mapped_column(String, nullable=False)
+    dns_value: Mapped[str] = mapped_column(String, nullable=False)
+    error_message: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class IpRule(Base):

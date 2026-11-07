@@ -5,8 +5,10 @@ from app.auth import require_write_access
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.models import Site
+from app.schemas.cert_order import CertOrderOut
 from app.schemas.sites import AntiBotUpdate, EnabledPatch, SiteCreate, SiteOut, SiteUpdate
-from app.services import render_service
+from app.services import acme_service, render_service
+from app.services.acme_service import AcmeOrderError
 from app.services.tls_service import expiry_from_pem
 
 router = APIRouter(prefix="/api/sites", tags=["sites"])
@@ -123,6 +125,66 @@ def update_anti_bot(
     db.commit()
     render_service.render_sites(db, settings)
     return _site_out(site)
+
+
+def _cert_order_out(order) -> CertOrderOut:
+    return CertOrderOut(
+        status=order.status.value,
+        dns_name=order.dns_name,
+        dns_value=order.dns_value,
+        error_message=order.error_message,
+    )
+
+
+@router.post("/{site_id}/cert-order", response_model=CertOrderOut, status_code=201)
+def create_cert_order(
+    site_id: int,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    _=Depends(require_write_access),
+):
+    """Starts (or restarts, for a renewal) a Let's Encrypt dns-01 order for
+    this site's domain - see services/acme_service.py. Returns the TXT
+    record the operator must add at their DNS provider; the frontend then
+    polls GET .../cert-order to find out when it's done.
+    """
+    site = db.get(Site, site_id)
+    if site is None:
+        raise HTTPException(404, "Site not found")
+    try:
+        order = acme_service.start_order(db, settings, site)
+    except AcmeOrderError as e:
+        raise HTTPException(502, str(e)) from e
+    return _cert_order_out(order)
+
+
+@router.get("/{site_id}/cert-order", response_model=CertOrderOut)
+def get_cert_order(
+    site_id: int,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    _=Depends(require_write_access),
+):
+    """Polled by the frontend every few seconds while a cert order is
+    pending. Does the actual DNS check + ACME finalize work inline on each
+    call rather than via a background task - see acme_service for why.
+
+    Gated behind require_write_access even though it's a GET: unlike every
+    other GET in this router, this one can have a real side effect (writing
+    an issued cert into Site.tls_cert/tls_key on the poll that detects a
+    valid DNS record) - a viewer polling it would otherwise be able to
+    trigger that write, breaking "viewer = no write endpoint of any kind".
+    """
+    site = db.get(Site, site_id)
+    if site is None:
+        raise HTTPException(404, "Site not found")
+    try:
+        order = acme_service.check_and_finalize(db, site)
+    except AcmeOrderError as e:
+        raise HTTPException(404, str(e)) from e
+    if order.status == "issued":
+        render_service.render_sites(db, settings)
+    return _cert_order_out(order)
 
 
 @router.delete("/{site_id}", status_code=204)
