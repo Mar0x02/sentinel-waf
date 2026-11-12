@@ -15,7 +15,7 @@ from app.api import (
     stats,
     users,
 )
-from app.auth import ensure_admin_seeded, get_current_user
+from app.auth import ensure_admin_seeded, require_password_changed
 from app.config import get_settings
 from app.db import Base, SessionLocal, engine
 from app.services import importer, render_service
@@ -37,7 +37,10 @@ app.add_middleware(
 # viewer must be able to GET from those same routers - see CLAUDE.md for
 # why that can't be expressed as a single router-level dependency.
 # app/api/users.py is admin-only end to end, enforced in its own router.
-logged_in = [Depends(get_current_user)]
+# require_password_changed (not plain get_current_user) also blocks all
+# of this while a user's must_change_password flag is set - only
+# auth.router's /me and /change-password stay reachable then.
+logged_in = [Depends(require_password_changed)]
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(rule_sets.router, dependencies=logged_in)

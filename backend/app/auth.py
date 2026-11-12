@@ -117,15 +117,32 @@ def get_current_user(
     return user
 
 
+def require_password_changed(user: User = Depends(get_current_user)) -> User:
+    """Blocks every endpoint except /api/auth/me and /api/auth/change-password
+    while must_change_password is set - previously only the frontend
+    (ForcedChangePasswordPage) enforced this, so a token obtained via the
+    API directly (curl, a script) could skip it entirely and use the rest
+    of the API normally. Not applied to auth.router itself, which only
+    uses get_current_user, so a locked-out-pending-change user can still
+    see their own status and submit a new password.
+    """
+    if user.must_change_password:
+        raise HTTPException(403, "You must change your password before continuing")
+    return user
+
+
 def require_role(*roles: Role):
     """Dependency factory: raises 403 unless the current user's role is one
     of `roles`. Applied per-endpoint (not per-router) wherever a write
     needs a higher bar than "logged in" - see CLAUDE.md for why routers
     can't just do this once at include_router() time like the plain
-    logged-in check does.
+    logged-in check does. Chains through require_password_changed (not
+    straight to get_current_user) so every write endpoint, and the
+    users.router (admin-only end to end), also get the must-change-password
+    gate for free.
     """
 
-    def checker(user: User = Depends(get_current_user)) -> User:
+    def checker(user: User = Depends(require_password_changed)) -> User:
         if user.role not in roles:
             raise HTTPException(403, "You don't have permission to do this")
         return user
