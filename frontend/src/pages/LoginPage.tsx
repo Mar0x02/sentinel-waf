@@ -1,5 +1,6 @@
 import { KeyRound, Loader2, ShieldCheck, User } from "lucide-react";
 import { FormEvent, useState } from "react";
+import { ApiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { useLanguage } from "../i18n/LanguageContext";
 
@@ -17,8 +18,14 @@ export function LoginPage() {
     setError(null);
     try {
       await login(username, password);
-    } catch {
-      setError(t("auth.loginError"));
+    } catch (e) {
+      // Wrong username/password comes back as a generic 401, intercepted
+      // early in api/client.ts's request() and rethrown as a plain Error
+      // ("401 Unauthorized") on purpose - never leaking which part was
+      // wrong. A lockout (429) isn't intercepted there, so it arrives as
+      // an ApiError carrying the real backend message (how long to wait) -
+      // worth showing as-is instead of the same generic copy.
+      setError(e instanceof ApiError ? e.message : t("auth.loginError"));
     } finally {
       setBusy(false);
     }
