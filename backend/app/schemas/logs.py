@@ -30,3 +30,16 @@ class AuditLogPage(BaseModel):
     limit: int
     offset: int
     items: list[AuditLogEntry]
+
+
+class ArchiveDate(BaseModel):
+    date: str
+    file_count: int
+    total_size_bytes: int
+
+
+class ArchiveFile(BaseModel):
+    filename: str
+    start_time: str
+    end_time: str
+    size_bytes: int

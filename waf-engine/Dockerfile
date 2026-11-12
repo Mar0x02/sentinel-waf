@@ -18,6 +18,12 @@ COPY njs/bot_challenge.js /etc/nginx/njs/bot_challenge.js
 COPY docker-entrypoint.d/02-generate-challenge-secret.sh /docker-entrypoint.d/02-generate-challenge-secret.sh
 RUN chmod +x /docker-entrypoint.d/02-generate-challenge-secret.sh
 
+# Caps the ModSecurity audit log's size so the backend's per-request
+# full-directory re-parse (see log_service.py) doesn't get slower forever -
+# see docker-entrypoint.d/03-audit-log-rotate.sh.
+COPY docker-entrypoint.d/03-audit-log-rotate.sh /docker-entrypoint.d/03-audit-log-rotate.sh
+RUN chmod +x /docker-entrypoint.d/03-audit-log-rotate.sh
+
 # Static include stub for per-site server blocks the dashboard renders
 # into /etc/nginx/conf.d/dashboard-sites/ - not a template, never changes.
 COPY dashboard-sites-include.conf /etc/nginx/conf.d/00-dashboard-sites.conf

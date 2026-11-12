@@ -46,7 +46,8 @@ services:
       WAF_ERROR_PAGES_RENDER_DIR: /render/error-pages
       WAF_ENGINE_SETTINGS_RENDER_DIR: /render/engine-settings
       WAF_IP_RULES_RENDER_DIR: /render/ip-rules
-      WAF_AUDIT_LOG_DIR: /data/logs
+      WAF_AUDIT_LOG_DIR: /data/logs/live
+      WAF_AUDIT_LOG_ARCHIVE_DIR: /data/logs/archive
       WAF_AUDIT_LOG_FORMAT: modsec_v3_json
     volumes:
       - rules-render:/render/modsecurity-rules
@@ -81,7 +82,7 @@ services:
     depends_on:
       - backend
     environment:
-      MODSEC_AUDIT_LOG: /var/log/modsecurity/audit/audit.log
+      MODSEC_AUDIT_LOG: /var/log/modsecurity/audit/live/audit.log
       MODSEC_AUDIT_LOG_FORMAT: JSON
       MODSEC_AUDIT_LOG_TYPE: Serial
     volumes:

@@ -41,8 +41,19 @@ class Settings(BaseSettings):
     # app/services/render_service.render_ip_rules().
     ip_rules_render_dir: Path = Path("/render/ip-rules")
 
-    # Directory containing ModSecurity audit log file(s) to read from.
-    audit_log_dir: Path = Path("/data/logs")
+    # Directory containing the *live* (currently-being-written) ModSecurity
+    # audit log file(s) - this is what the Logs page / Dashboard read.
+    # waf-engine's docker-entrypoint.d/03-audit-log-rotate.sh keeps exactly
+    # one small file here (the rest of the shared volume is the separate
+    # audit_log_archive_dir below), so this directory never grows unbounded.
+    audit_log_dir: Path = Path("/data/logs/live")
+
+    # Directory of day-folders (YYYY-MM-DD) holding gzip-compressed, no
+    # longer live-browsable audit log chunks - rendered by the same rotate
+    # script, read by app/services/log_archive_service.py for the Log
+    # Archive page. Archiving (not deleting) is the point: nothing here
+    # gets pruned automatically.
+    audit_log_archive_dir: Path = Path("/data/logs/archive")
 
     # Which audit log parser/adapter to use. See app/adapters/.
     # "modsec_v3_json" = ModSecurity v3 (libmodsecurity) JSON audit log,

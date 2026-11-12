@@ -21,7 +21,16 @@ class ModSecV3JsonParser(AuditLogParser):
 
         entries: list[AuditLogEntry] = []
         for path in sorted(log_dir.rglob("*")):
-            if not path.is_file():
+            # log_dir is Settings.audit_log_dir, which only ever points at
+            # the live/ subdirectory - archive/<date>/*.gz chunks (see
+            # app/services/log_archive_service.py and waf-engine's
+            # docker-entrypoint.d/03-audit-log-rotate.sh) live in a sibling
+            # directory this never scans, so the Logs page's per-request
+            # full-directory parse stays bounded no matter how large the
+            # archive grows. The .gz skip here is just defense in depth
+            # (e.g. a misconfigured audit_log_dir) - not JSON, would
+            # otherwise fail to parse anyway.
+            if not path.is_file() or path.suffix == ".gz":
                 continue
             entries.extend(self._parse_file(path))
         return entries

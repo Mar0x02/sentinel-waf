@@ -7,6 +7,7 @@ from app.api import (
     engine_settings,
     error_pages,
     ip_rules,
+    log_archive,
     logs,
     rule_sets,
     settings_api,
@@ -44,6 +45,7 @@ app.include_router(sites.router, dependencies=logged_in)
 app.include_router(settings_api.router, dependencies=logged_in)
 app.include_router(error_pages.router, dependencies=logged_in)
 app.include_router(logs.router, dependencies=logged_in)
+app.include_router(log_archive.router, dependencies=logged_in)
 app.include_router(stats.router, dependencies=logged_in)
 app.include_router(engine_settings.router, dependencies=logged_in)
 app.include_router(discord.router, dependencies=logged_in)

@@ -13,7 +13,11 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-AUDIT_LOG_DIR = Path("/data/logs")
+# Only the live (currently-being-written) chunk - waf-engine's
+# docker-entrypoint.d/03-audit-log-rotate.sh moves everything else into
+# archive/<date>/ once it's cut, which this sidecar never needs to read
+# (whatever it held was already forwarded, by the time it gets archived).
+AUDIT_LOG_DIR = Path("/data/logs/live")
 SINK_CONFIG_PATH = Path("/render/log-sinks/log-sinks.json")
 DISCORD_CONFIG_PATH = Path("/render/discord/webhooks.json")
 OFFSETS_PATH = Path("/state/offsets.json")
@@ -267,7 +271,11 @@ def main() -> None:
 
         if AUDIT_LOG_DIR.exists():
             for path in sorted(AUDIT_LOG_DIR.rglob("*")):
-                if not path.is_file():
+                # AUDIT_LOG_DIR is live/ only - rotated .gz chunks live in
+                # the sibling archive/ directory this never scans, and
+                # whatever they held was already forwarded by the time
+                # they get cut. The .gz skip is just defense in depth.
+                if not path.is_file() or path.suffix == ".gz":
                     continue
                 key = str(path)
                 lines, new_offset = tail_new_lines(path, offsets.get(key, 0))
