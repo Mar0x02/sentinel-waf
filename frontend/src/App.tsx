@@ -7,6 +7,7 @@ import { AntiBotPage } from "./pages/AntiBotPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ErrorPagesPage } from "./pages/ErrorPagesPage";
 import { ForcedChangePasswordPage } from "./pages/ForcedChangePasswordPage";
+import { LogArchivePage } from "./pages/LogArchivePage";
 import { LoginPage } from "./pages/LoginPage";
 import { LogsPage } from "./pages/LogsPage";
 import { RuleSetDetailPage } from "./pages/RuleSetDetailPage";
@@ -32,6 +33,7 @@ export function App() {
         <Routes>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/logs" element={<LogsPage />} />
+          <Route path="/logs/archive" element={<LogArchivePage />} />
           <Route path="/access-control" element={<AccessControlPage />} />
           <Route path="/rules" element={<RulesPage />} />
           <Route path="/rules/:ruleSetId" element={<RuleSetDetailPage />} />

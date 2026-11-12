@@ -1,11 +1,10 @@
-import { AlertTriangle, Ban, Bug, Github, Globe, LayoutDashboard, Languages, LogOut, ScrollText, Settings, ShieldCheck, Users } from "lucide-react";
+import { AlertTriangle, Archive, Ban, Bug, Github, Globe, LayoutDashboard, Languages, LogOut, ScrollText, Settings, ShieldCheck, Users } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useLanguage } from "../i18n/LanguageContext";
 
 const navItems = [
   { to: "/", key: "nav.dashboard", icon: LayoutDashboard, end: true },
-  { to: "/logs", key: "nav.logs", icon: ScrollText, end: false },
   { to: "/rules", key: "nav.rules", icon: ShieldCheck, end: false },
   { to: "/sites", key: "nav.sites", icon: Globe, end: false },
   { to: "/anti-bot", key: "nav.antiBot", icon: Bug, end: false },
@@ -28,6 +27,24 @@ export function Nav() {
       </h1>
 
       <div className="nav-links">
+        <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : "")}>
+          <LayoutDashboard size={17} strokeWidth={2} />
+          <span>{t("nav.dashboard")}</span>
+        </NavLink>
+
+        <div className="nav-group">
+          <span className="nav-group-label">{t("nav.logs")}</span>
+          <NavLink to="/logs" end className={({ isActive }) => (isActive ? "active" : "")}>
+            <span className="nav-live-dot" aria-hidden="true" />
+            <ScrollText size={17} strokeWidth={2} />
+            <span>{t("nav.liveLog")}</span>
+          </NavLink>
+          <NavLink to="/logs/archive" className={({ isActive }) => (isActive ? "active" : "")}>
+            <Archive size={17} strokeWidth={2} />
+            <span>{t("nav.logArchive")}</span>
+          </NavLink>
+        </div>
+
         {navItems.map(({ to, key, icon: Icon, end }) => (
           <NavLink key={to} to={to} end={end} className={({ isActive }) => (isActive ? "active" : "")}>
             <Icon size={17} strokeWidth={2} />

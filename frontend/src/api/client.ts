@@ -231,6 +231,19 @@ export interface AuditLogPage {
   items: AuditLogEntry[];
 }
 
+export interface ArchiveDate {
+  date: string;
+  file_count: number;
+  total_size_bytes: number;
+}
+
+export interface ArchiveFile {
+  filename: string;
+  start_time: string;
+  end_time: string;
+  size_bytes: number;
+}
+
 export interface StatsSummary {
   total_requests: number;
   total_blocked: number;
@@ -359,6 +372,45 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
+// Triggers a browser download for an endpoint that returns a binary body
+// (Content-Disposition: attachment) rather than JSON - request() always
+// calls res.json(), so this is a separate helper rather than a flag on it.
+// Needs the same auth header as every other call since fetch, unlike a
+// plain <a href>, is the only way to attach it.
+async function downloadFile(path: string, fallbackFilename: string): Promise<void> {
+  const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+  const res = await fetch(`${BASE_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (res.status === 401) {
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    onUnauthorized?.();
+    throw new Error("401 Unauthorized");
+  }
+  if (!res.ok) {
+    const body = await res.text();
+    let message: string | null = null;
+    try {
+      ({ message } = parseErrorDetail(JSON.parse(body).detail));
+    } catch {
+      // Not JSON - fall through to the raw-body fallback below.
+    }
+    throw new ApiError(message ?? `${res.status} ${res.statusText}: ${body}`, {});
+  }
+  const disposition = res.headers.get("Content-Disposition") ?? "";
+  const match = disposition.match(/filename="([^"]+)"/);
+  const filename = match ? match[1] : fallbackFilename;
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export type Role = "admin" | "operator" | "viewer";
 
 export interface LoginResult {
@@ -446,6 +498,17 @@ export const discordApi = {
   toggle: (id: number, enabled: boolean) =>
     request<DiscordWebhook>(`/api/discord-webhooks/${id}`, { method: "PATCH", body: JSON.stringify({ enabled }) }),
   delete: (id: number) => request<void>(`/api/discord-webhooks/${id}`, { method: "DELETE" }),
+};
+
+export const logArchiveApi = {
+  listDates: () => request<ArchiveDate[]>("/api/log-archive/dates"),
+  listFiles: (date: string) => request<ArchiveFile[]>(`/api/log-archive/dates/${date}`),
+  downloadGz: (date: string, filename: string) =>
+    downloadFile(`/api/log-archive/dates/${date}/${filename}/download?format=gz`, filename),
+  downloadLog: (date: string, filename: string) =>
+    downloadFile(`/api/log-archive/dates/${date}/${filename}/download?format=log`, filename.replace(/\.gz$/, ".log")),
+  delete: (date: string, filename: string) =>
+    request<void>(`/api/log-archive/dates/${date}/${filename}`, { method: "DELETE" }),
 };
 
 export const api = {
