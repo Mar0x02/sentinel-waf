@@ -111,7 +111,10 @@ WAF tanpa perlu masuk ke container sama sekali.
   dalam Bahasa Indonesia atau English (tinggal toggle). IP yang gagal
   login 5x beruntun otomatis kena lockout 15 menit (gak bisa coba lagi
   walau password-nya bener sekalipun) - proteksi dasar terhadap
-  brute-force password.
+  brute-force password. Wajib ganti password awal juga ditegakkan di
+  backend-nya sendiri, bukan cuma di tampilan - token login gak bisa
+  dipakai ke endpoint lain selain ganti password sampai password itu
+  diganti.
 - **Team & role** - tambah anggota tim dengan 3 level akses: **Admin**
   (full akses + kelola user lain), **Operator** (kelola rule/site/error
   page sehari-hari), **Viewer** (read-only). Dikelola dari tab **Team**
