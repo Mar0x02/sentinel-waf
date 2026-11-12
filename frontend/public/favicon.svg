@@ -1,4 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M20 13c0 5-3.5 7.5-8 8.5-4.5-1-8-3.5-8-8.5V6l8-3 8 3Z"/>
-  <path d="m9 12 2 2 4-4"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="shieldFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2f2f46" />
+      <stop offset="100%" stop-color="#1e1e2d" />
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="56" fill="#1e1e2d" />
+
+  <path
+    d="M256,78 L388,130 V256 C388,348 332,402 256,440 C180,402 124,348 124,256 V130 Z"
+    fill="url(#shieldFill)"
+    stroke="#22d3ee"
+    stroke-width="8"
+    stroke-linejoin="round"
+  />
+
+  <circle cx="256" cy="252" r="78" fill="none" stroke="#22d3ee" stroke-width="3" opacity="0.28" />
+  <circle cx="256" cy="252" r="56" fill="none" stroke="#22d3ee" stroke-width="3" opacity="0.45" />
+  <circle cx="256" cy="252" r="34" fill="none" stroke="#22d3ee" stroke-width="3.5" opacity="0.7" />
+  <line x1="256" y1="252" x2="304" y2="208" stroke="#22d3ee" stroke-width="4" stroke-linecap="round" opacity="0.85" />
+  <circle cx="256" cy="252" r="11" fill="#06b6d4" />
 </svg>
