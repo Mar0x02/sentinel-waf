@@ -87,6 +87,14 @@ WAF tanpa perlu masuk ke container sama sekali.
   globe interaktif asal-negara request). Tiap baris log di tab **Logs**
   bisa diklik buat liat detail lengkap: host tujuan, User-Agent pengirim,
   dan semua rule yang cocok beserta pesan/severity/tags/data-nya.
+- **Log Archive (per hari, auto-compress)** - audit log ModSecurity gak
+  numpuk jadi 1 file gede selamanya: begitu lewat 50MB atau ganti hari,
+  otomatis dipotong, di-*gzip*, dan disimpen di folder per tanggal (mis.
+  `2026-11-11`). Tab **Logs** kebagi 2: **Live Log** (yang lagi jalan,
+  real-time, kayak biasa) dan **Log Archive** (histori per tanggal) - pilih
+  tanggal, muncul daftar potongan log hari itu lengkap rentang jamnya,
+  bisa didownload sebagai `.gz` (kompresi asli) atau `.log` (udah
+  didekompres), atau dihapus kalau gak kepake lagi (Admin/Operator).
 - **Notifikasi Discord** - tiap request yang diblokir WAF langsung kekirim
   ke channel Discord (di-batch biar gak kena rate-limit webhook Discord
   pas lagi diserang rame). Atur dari tab Settings, khusus Admin. Cara
@@ -425,6 +433,9 @@ docker-compose.yml
   Site cuma bisa punya satu `upstream_url`.
 - Mode WAF (enforce/detection) masih global, belum bisa per-site.
 - Audit log belum di-ingest ke Postgres (dashboard baca langsung dari file log).
+- **Log Archive gak di-prune otomatis** - potongan log yang udah di-*gzip*
+  disimpen permanen sampai dihapus manual lewat tab Log Archive. Walau
+  udah dikompres, kalau dibiarin lama-lama tetep numpuk di disk.
 - Log sink baru mendukung syslog (webhook/Elasticsearch belum ada).
 - Belum ada schema migration tool (Alembic) - skema dibuat otomatis saat
   startup, perubahan kolom di tabel existing butuh `ALTER TABLE` manual.
