@@ -18,6 +18,7 @@ from app.api import (
 from app.auth import ensure_admin_seeded, require_password_changed
 from app.config import get_settings
 from app.db import Base, SessionLocal, engine
+from app.schema_upgrade import run_schema_upgrades
 from app.services import importer, render_service
 
 app = FastAPI(title="Sentinel WAF")
@@ -57,6 +58,7 @@ app.include_router(ip_rules.router, dependencies=logged_in)
 
 @app.on_event("startup")
 def on_startup():
+    run_schema_upgrades(engine)
     Base.metadata.create_all(bind=engine)
     settings = get_settings()
     db = SessionLocal()

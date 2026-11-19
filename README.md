@@ -449,6 +449,9 @@ docker-compose.yml
   disimpen permanen sampai dihapus manual lewat tab Log Archive. Walau
   udah dikompres, kalau dibiarin lama-lama tetep numpuk di disk.
 - Log sink baru mendukung syslog (webhook/Elasticsearch belum ada).
-- Belum ada schema migration tool (Alembic) - skema dibuat otomatis saat
-  startup, perubahan kolom di tabel existing butuh `ALTER TABLE` manual.
+- Belum ada schema migration tool (Alembic) - tapi backend otomatis nambah
+  kolom baru yang kurang di tabel existing saat startup (lihat
+  `app/schema_upgrade.py`), jadi update versi biasa **gak perlu** `ALTER
+  TABLE` manual. Baru butuh migrasi manual kalau suatu saat ada
+  rename/drop kolom atau migrasi data beneran.
 - Dukungan Apache + mod_security2 belum diimplementasikan (baru ModSecurity v3/nginx).
