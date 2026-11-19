@@ -11,6 +11,7 @@ const emptyForm = {
   domain: "",
   upstream_url: "",
   listen_port: 8080,
+  waf_mode: "on" as Site["waf_mode"],
   tls_enabled: false,
   tls_listen_port: 8443,
   tls_cert: "",
@@ -66,6 +67,12 @@ function limitBadge(site: Site, t: (key: string, vars?: Record<string, string | 
   if (site.rate_limit_enabled) parts.push(t("sites.rateLimitBadge", { rps: site.rate_limit_rps }));
   if (site.conn_limit_enabled) parts.push(t("sites.connLimitBadge", { n: site.conn_limit_per_ip }));
   return <span className="tls-badge tls-badge-ok">{parts.join(" · ")}</span>;
+}
+
+function wafModeBadge(site: Site, t: (key: string) => string) {
+  if (site.waf_mode === "off") return <span className="tls-badge tls-badge-expired">{t("sites.wafModeOff")}</span>;
+  if (site.waf_mode === "detection") return <span className="tls-badge tls-badge-warn">{t("sites.wafModeDetection")}</span>;
+  return <span className="tls-badge tls-badge-ok">{t("sites.wafModeOn")}</span>;
 }
 
 export function SitesPage() {
@@ -168,11 +175,16 @@ export function SitesPage() {
   }
 
   async function submit() {
+    const current = editingId !== null ? sites.find((s) => s.id === editingId) : null;
+    if (form.waf_mode === "off" && current?.waf_mode !== "off" && !(await confirm(t("sites.wafModeOffConfirm")))) {
+      return;
+    }
     const payload: SitePayload = {
       name: form.name,
       domain: form.domain,
       upstream_url: form.upstream_url,
       listen_port: form.listen_port,
+      waf_mode: form.waf_mode,
       tls_enabled: form.tls_enabled,
       tls_listen_port: form.tls_listen_port,
       rate_limit_enabled: form.rate_limit_enabled,
@@ -220,6 +232,7 @@ export function SitesPage() {
       domain: site.domain,
       upstream_url: site.upstream_url,
       listen_port: site.listen_port,
+      waf_mode: site.waf_mode,
       tls_enabled: site.tls_enabled,
       tls_listen_port: site.tls_listen_port,
       tls_cert: "",
@@ -251,6 +264,7 @@ export function SitesPage() {
               <th>{t("sites.port")}</th>
               <th>{t("sites.tlsColumn")}</th>
               <th>{t("sites.limitsColumn")}</th>
+              <th>{t("sites.wafModeColumn")}</th>
               <th></th>
             </tr>
           </thead>
@@ -263,6 +277,7 @@ export function SitesPage() {
                 <td>{s.listen_port}</td>
                 <td>{certBadge(s, t)}</td>
                 <td>{limitBadge(s, t)}</td>
+                <td>{wafModeBadge(s, t)}</td>
                 <td style={{ display: "flex", gap: 8 }}>
                   {canWrite && (
                     <>
@@ -318,7 +333,7 @@ export function SitesPage() {
             ))}
             {sites.length === 0 && (
               <tr>
-                <td colSpan={7} className="muted">
+                <td colSpan={8} className="muted">
                   {t("sites.noSites")}
                 </td>
               </tr>
@@ -371,6 +386,19 @@ export function SitesPage() {
             }}
           />
         </div>
+
+        <label>
+          {t("sites.wafModeLabel")}
+          <select
+            value={form.waf_mode}
+            onChange={(e) => setForm({ ...form, waf_mode: e.target.value as Site["waf_mode"] })}
+          >
+            <option value="on">{t("sites.wafModeOn")}</option>
+            <option value="detection">{t("sites.wafModeDetection")}</option>
+            <option value="off">{t("sites.wafModeOff")}</option>
+          </select>
+          <span className="muted">{t("sites.wafModeHelp")}</span>
+        </label>
 
         <label className="toggle-option toggle-option-first">
           <input

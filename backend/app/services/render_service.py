@@ -18,6 +18,7 @@ from app.models import (
     RuleFile,
     RuleSet,
     Site,
+    WafMode,
 )
 from app.services.importer import BASE_TUNING_RULE_SET_SLUG
 
@@ -147,6 +148,21 @@ def _bad_user_agent_directive(site: Site) -> str:
     return f'    if ($http_user_agent ~* "{_BAD_USER_AGENT_RE}") {{\n        return 403;\n    }}\n\n'
 
 
+# Per-site override of the normally-global SecRuleEngine (see WafMode).
+# "on" renders nothing - the site just inherits whatever the waf-engine
+# container's global default is, so every existing Site's config is
+# byte-for-byte unchanged until someone actually picks a different mode.
+_WAF_MODE_DIRECTIVES: dict[WafMode, str] = {
+    WafMode.on: "",
+    WafMode.detection: "    modsecurity_rules 'SecRuleEngine DetectionOnly';\n\n",
+    WafMode.off: "    modsecurity off;\n\n",
+}
+
+
+def _waf_mode_directive(site: Site) -> str:
+    return _WAF_MODE_DIRECTIVES[site.waf_mode]
+
+
 def _proxy_location(site: Site, limit_directives: str) -> str:
     """Builds the `location / { ... }` block (plus any decoy locations the
     Anti-Bot menu's honeypot toggles need) that actually proxy_passes to
@@ -256,7 +272,7 @@ def render_sites(db: Session, settings: Settings) -> None:
     listen {site.listen_port};
     server_name {site.domain};
 
-    include includes/sentinel-error-pages.conf;
+{_waf_mode_directive(site)}    include includes/sentinel-error-pages.conf;
 
     location / {{
         return 301 {https_target};
@@ -267,7 +283,7 @@ server {{
     listen {site.tls_listen_port} ssl;
     server_name {site.domain};
 
-    ssl_certificate /etc/nginx/conf.d/dashboard-sites/certs/site-{site.id}.crt;
+{_waf_mode_directive(site)}    ssl_certificate /etc/nginx/conf.d/dashboard-sites/certs/site-{site.id}.crt;
     ssl_certificate_key /etc/nginx/conf.d/dashboard-sites/certs/site-{site.id}.key;
 
     include includes/sentinel-error-pages.conf;
@@ -280,7 +296,7 @@ server {{
     listen {site.listen_port};
     server_name {site.domain};
 
-    include includes/sentinel-error-pages.conf;
+{_waf_mode_directive(site)}    include includes/sentinel-error-pages.conf;
 
 {_bad_user_agent_directive(site)}{_proxy_location(site, limit_directives)}
 }}

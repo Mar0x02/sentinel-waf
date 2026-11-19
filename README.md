@@ -67,6 +67,13 @@ WAF tanpa perlu masuk ke container sama sekali.
 - **Reverse proxy (Sites)** - daftarkan domain + upstream backend dari
   dashboard, langsung jadi server block nginx yang otomatis dilindungi
   oleh rule yang aktif.
+- **Mode WAF per-site** - tiap Site bisa diset independen: **Blocking**
+  (default, ModSecurity aktif penuh), **Detection only** (tetap
+  logging/scoring tapi gak pernah block - cocok buat tuning CRS di satu
+  site tanpa ganggu site lain yang udah production), atau **Off**
+  (ModSecurity gak jalan sama sekali buat site itu). Site lain gak
+  kepengaruh sama sekali - gak perlu matiin protection semua site cuma
+  buat debug satu site.
 - **HTTPS per-site, manual atau otomatis** - aktifkan HTTPS buat site
   tertentu dengan upload certificate + private key sendiri (paste langsung
   atau upload file `.crt`/`.key`), **atau** klik "Generate via Let's
@@ -437,7 +444,6 @@ docker-compose.yml
   tanpa pernah mencoba block.
 - **Load balancing ke banyak upstream server per site belum ada** - satu
   Site cuma bisa punya satu `upstream_url`.
-- Mode WAF (enforce/detection) masih global, belum bisa per-site.
 - Audit log belum di-ingest ke Postgres (dashboard baca langsung dari file log).
 - **Log Archive gak di-prune otomatis** - potongan log yang udah di-*gzip*
   disimpen permanen sampai dihapus manual lewat tab Log Archive. Walau

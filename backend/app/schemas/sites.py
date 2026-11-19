@@ -3,6 +3,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.models import WafMode
 from app.services.tls_service import CertValidationError, validate_cert_key_pair
 
 _DOMAIN_RE = r"^(\*\.)?[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$"
@@ -44,6 +45,7 @@ class SiteOut(BaseModel):
     upstream_url: str
     listen_port: int
     enabled: bool
+    waf_mode: WafMode
     created_at: datetime
     updated_at: datetime
     # TLS: tls_cert/tls_key are intentionally never exposed here, even to an
@@ -128,6 +130,7 @@ class AntiBotUpdate(_AntiBotFieldsMixin):
 class SiteCreate(_TlsFieldsMixin, _RateLimitFieldsMixin, _AntiBotFieldsMixin, _AddressFieldsMixin):
     name: str = Field(min_length=1, max_length=100)
     listen_port: int = Field(default=8080, ge=1, le=65535)
+    waf_mode: WafMode = WafMode.on
 
     @model_validator(mode="after")
     def _require_cert_if_enabled(self):
@@ -139,6 +142,7 @@ class SiteCreate(_TlsFieldsMixin, _RateLimitFieldsMixin, _AntiBotFieldsMixin, _A
 class SiteUpdate(_TlsFieldsMixin, _RateLimitFieldsMixin, _AntiBotFieldsMixin, _AddressFieldsMixin):
     name: str = Field(min_length=1, max_length=100)
     listen_port: int = Field(ge=1, le=65535)
+    waf_mode: WafMode = WafMode.on
 
 
 class EnabledPatch(BaseModel):

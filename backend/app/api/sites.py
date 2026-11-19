@@ -22,6 +22,7 @@ def _site_out(site: Site) -> SiteOut:
         upstream_url=site.upstream_url,
         listen_port=site.listen_port,
         enabled=site.enabled,
+        waf_mode=site.waf_mode,
         created_at=site.created_at,
         updated_at=site.updated_at,
         tls_enabled=site.tls_enabled,

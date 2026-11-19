@@ -122,6 +122,7 @@ export interface Site {
   upstream_url: string;
   listen_port: number;
   enabled: boolean;
+  waf_mode: "on" | "detection" | "off";
   created_at: string;
   updated_at: string;
   tls_enabled: boolean;
@@ -151,6 +152,7 @@ export interface SitePayload {
   domain: string;
   upstream_url: string;
   listen_port: number;
+  waf_mode: "on" | "detection" | "off";
   tls_enabled: boolean;
   tls_listen_port: number;
   // Omitted (undefined) on an update means "keep the currently stored

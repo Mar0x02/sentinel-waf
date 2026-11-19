@@ -34,6 +34,16 @@ class IpRuleAction(str, enum.Enum):
     block = "block"
 
 
+class WafMode(str, enum.Enum):
+    # Per-site override of the normally-global SecRuleEngine - see
+    # render_service.py's _waf_mode_directive(). "on" renders no override
+    # at all (inherits the waf-engine container's global default), so
+    # every existing Site keeps today's behavior unchanged.
+    on = "on"
+    detection = "detection"
+    off = "off"
+
+
 class CertOrderStatus(str, enum.Enum):
     pending_dns = "pending_dns"
     issued = "issued"
@@ -132,6 +142,12 @@ class Site(Base):
     upstream_url: Mapped[str] = mapped_column(String, nullable=False)
     listen_port: Mapped[int] = mapped_column(Integer, default=8080, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Per-site SecRuleEngine override - see WafMode and
+    # render_service.py's _waf_mode_directive(). Existing installs need a
+    # manual `ALTER TABLE sites ADD COLUMN waf_mode VARCHAR NOT NULL
+    # DEFAULT 'on';` - this project has no Alembic, create_all() never
+    # alters an existing table (see CLAUDE.md).
+    waf_mode: Mapped[WafMode] = mapped_column(Enum(WafMode), default=WafMode.on, nullable=False)
     # TLS cert+key pair, either pasted/uploaded manually or filled in by a
     # completed Let's Encrypt order (see services/acme_service.py and
     # CertOrder below). Never returned by the API once stored (write-only,
